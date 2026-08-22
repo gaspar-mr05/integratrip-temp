@@ -10,7 +10,7 @@ class CimdTokenExchangeError(Exception):
     pass
 
 
-def exchange_code_for_tokens(
+def cimd_exchange_code_for_tokens(
     *,
     token_endpoint: str,
     client_id: str,
