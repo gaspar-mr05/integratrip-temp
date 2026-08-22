@@ -6,20 +6,19 @@ from app.security.pkce import (
     generate_state,
     transform_code_verifier_to_code_challenge,
 )
-from app.services.oauth.dcr import DcrRegistrationError, register_client
-from app.services.oauth.pre import (
-    PreTokenExchangeError,
+from app.services.oauth.authorization_code import (
+    OAuthTokenExchangeError,
     build_authorization_url,
     exchange_code_for_tokens,
 )
-from app.services.oauth.cimd import (
-    CimdTokenExchangeError,
-    cimd_exchange_code_for_tokens,
-)
+from app.services.oauth.dcr import DcrRegistrationError, register_client
 from app.services.oauth.state_expiry import is_state_expired
 from app.config import get_settings
 
 settings = get_settings()
+
+SUPPORTED_AUTH_TYPES = ("PRE", "DCR", "CIMD")
+PUBLIC_CLIENT_AUTH_TYPES = ("CIMD",)
 
 
 class ConnectionFlowError(Exception):
@@ -34,14 +33,21 @@ def _get_mcp_server(server_name: str) -> dict:
     mcp_server = get_mcp_server_by_name(server_name)
     if mcp_server is None:
         raise ConnectionFlowError(f"No existe el servidor MCP '{server_name}'")
+    if mcp_server["auth_type"] not in SUPPORTED_AUTH_TYPES:
+        raise ConnectionFlowError(f"Tipo de auth no soportado: {mcp_server['auth_type']}")
     return mcp_server
 
 
 def _resolve_redirect_uri(mcp_server: dict) -> str:
-    """Primera URL del array en producción, última en local."""
     if settings.ENVIRONMENT == "production":
         return mcp_server["redirect_uris"][0]
     return mcp_server["redirect_uris"][-1]
+
+
+def _client_secret(mcp_server: dict) -> str | None:
+    if mcp_server["auth_type"] in PUBLIC_CLIENT_AUTH_TYPES:
+        return None
+    return mcp_server["client_secret_enc"]
 
 
 def _register_dynamic_client(mcp_server: dict) -> dict:
@@ -72,8 +78,13 @@ def _register_dynamic_client(mcp_server: dict) -> dict:
 
 def start_mcp_connection_flow(user_id: str, server_name: str) -> str:
     mcp_server = _get_mcp_server(server_name)
-    if mcp_server["client_id"] is None:
+    if mcp_server["auth_type"] == "DCR" and not mcp_server["client_id"]:
         mcp_server = _register_dynamic_client(mcp_server)
+
+    if not mcp_server["client_id"]:
+        raise ConnectionFlowError(
+            f"El servidor MCP '{mcp_server['name']}' no tiene client_id configurado"
+        )
 
     code_verifier = create_code_verifier()
     state = generate_state()
@@ -108,29 +119,17 @@ def _consume_connection_state(state: str, mcp_server_id: str) -> dict:
 def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dict:
     mcp_server = _get_mcp_server(server_name)
     mcp_state = _consume_connection_state(state, mcp_server["id"])
-    redirect_uri = _resolve_redirect_uri(mcp_server)
 
     try:
-        if mcp_server["auth_type"] in ("PRE", "DCR"):
-            tokens = exchange_code_for_tokens(
-                token_endpoint=mcp_server["token_endpoint"],
-                client_id=mcp_server["client_id"],
-                client_secret=mcp_server["client_secret_enc"],
-                redirect_uri=redirect_uri,
-                code=code,
-                code_verifier=mcp_state["code_verifier"],
-            )
-        elif mcp_server["auth_type"] == "CIMD":
-            tokens = cimd_exchange_code_for_tokens(
-                token_endpoint=mcp_server["token_endpoint"],
-                client_id=mcp_server["client_id"],
-                redirect_uri=redirect_uri,
-                code=code,
-                code_verifier=mcp_state["code_verifier"],
-            )
-        else:
-            raise ConnectionFlowError(f"Tipo de auth no soportado: {mcp_server['auth_type']}")
-    except (PreTokenExchangeError, CimdTokenExchangeError) as exc:
+        tokens = exchange_code_for_tokens(
+            token_endpoint=mcp_server["token_endpoint"],
+            client_id=mcp_server["client_id"],
+            client_secret=_client_secret(mcp_server),
+            redirect_uri=_resolve_redirect_uri(mcp_server),
+            code=code,
+            code_verifier=mcp_state["code_verifier"],
+        )
+    except OAuthTokenExchangeError as exc:
         raise ConnectionFlowError(str(exc)) from exc
 
     access_token = tokens.get("access_token")

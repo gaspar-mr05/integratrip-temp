@@ -1,5 +1,3 @@
-"""Vigencia de las filas de state de un flujo OAuth (login y conexión MCP)."""
-
 from datetime import datetime, timezone
 
 

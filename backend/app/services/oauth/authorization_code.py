@@ -1,9 +1,3 @@
-"""Flujo Authorization Code + PKCE para clientes pre-registrados (PRE).
-
-Funciones genéricas: no leen settings ni conocen el login de la app, así que
-sirven para el login propio y para conectar cualquier MCP de tipo PRE.
-"""
-
 import logging
 from urllib.parse import urlencode
 
@@ -14,7 +8,7 @@ logger = logging.getLogger(__name__)
 TOKEN_REQUEST_TIMEOUT = 10
 
 
-class PreTokenExchangeError(Exception):
+class OAuthTokenExchangeError(Exception):
     pass
 
 
@@ -45,24 +39,26 @@ def exchange_code_for_tokens(
     *,
     token_endpoint: str,
     client_id: str,
-    client_secret: str,
     redirect_uri: str,
     code: str,
     code_verifier: str,
+    client_secret: str | None = None,
 ) -> dict:
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
         "client_id": client_id,
-        "client_secret": client_secret,
         "code_verifier": code_verifier,
     }
+    if client_secret is not None:
+        data["client_secret"] = client_secret
+
     try:
         response = requests.post(token_endpoint, data=data, timeout=TOKEN_REQUEST_TIMEOUT)
     except requests.RequestException as exc:
         logger.exception("Fallo la conexión con el token endpoint del AS")
-        raise PreTokenExchangeError("No se pudo contactar al servidor de autorización") from exc
+        raise OAuthTokenExchangeError("No se pudo contactar al servidor de autorización") from exc
 
     if response.status_code != 200:
         logger.error(
@@ -70,6 +66,6 @@ def exchange_code_for_tokens(
             response.status_code,
             response.text,
         )
-        raise PreTokenExchangeError("El servidor de autorización rechazó el código")
+        raise OAuthTokenExchangeError("El servidor de autorización rechazó el código")
 
     return response.json()

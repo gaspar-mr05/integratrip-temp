@@ -10,7 +10,7 @@ from app.security.pkce import (
 )
 from app.security.session import create_session_token
 from app.security.access_token import read_access_token_claims
-from app.services.oauth import pre
+from app.services.oauth import authorization_code
 from app.services.oauth.state_expiry import is_state_expired
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def start_login_flow() -> str:
     if not insert_login_state(state, code_verifier):
         raise LoginFlowError("No se pudo guardar el state del flujo de login")
 
-    return pre.build_authorization_url(
+    return authorization_code.build_authorization_url(
         authorization_endpoint=settings.AS_AUTHORIZATION_ENDPOINT,
         client_id=settings.LOGIN_CLIENT_ID,
         redirect_uri=settings.LOGIN_REDIRECT_URI,
@@ -61,7 +61,7 @@ def consume_code_verifier(state: str) -> str:
 def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
     settings = get_settings()
     try:
-        return pre.exchange_code_for_tokens(
+        return authorization_code.exchange_code_for_tokens(
             token_endpoint=settings.AS_TOKEN_ENDPOINT,
             client_id=settings.LOGIN_CLIENT_ID,
             client_secret=settings.LOGIN_CLIENT_SECRET,
@@ -69,7 +69,7 @@ def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
             code=code,
             code_verifier=code_verifier,
         )
-    except pre.PreTokenExchangeError as exc:
+    except authorization_code.OAuthTokenExchangeError as exc:
         raise TokenExchangeError(str(exc)) from exc
 
 
