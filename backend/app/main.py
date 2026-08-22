@@ -20,3 +20,20 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/.well-known/oauth-client-metadata.json")
+def oauth_client_metadata():
+    settings = get_settings()
+    metadata_url = f"{settings.BACKEND_URL}/.well-known/oauth-client-metadata.json"
+    return {
+        "client_id": metadata_url,
+        "client_name": "IntegraTrip",
+        "redirect_uris": [
+            "https://integratrip-temp.onrender.com/mcp/cielo-sur/callback",
+            "http://localhost:8000/mcp/cielo-sur/callback",
+        ],
+        "grant_types": ["authorization_code"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",
+    }
+
+
