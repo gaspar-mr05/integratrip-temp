@@ -16,11 +16,10 @@ class DcrRegistrationError(Exception):
     pass
 
 
-def register_client(*, registration_endpoint: str, redirect_uri: str, client_name: str) -> dict:
-    """Devuelve la respuesta del AS, garantizando que trae `client_id`."""
+def register_client(*, registration_endpoint: str, redirect_uris: list[str], client_name: str) -> dict:
     data = {
         "client_name": client_name,
-        "redirect_uris": [redirect_uri],
+        "redirect_uris": redirect_uris,
         "grant_types": ["authorization_code"],
         "response_types": ["code"],
         "token_endpoint_auth_method": "client_secret_post",

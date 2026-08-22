@@ -13,6 +13,9 @@ from app.services.oauth.pre import (
     exchange_code_for_tokens,
 )
 from app.services.oauth.state_expiry import is_state_expired
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class ConnectionFlowError(Exception):
@@ -30,8 +33,14 @@ def _get_mcp_server(server_name: str) -> dict:
     return mcp_server
 
 
+def _resolve_redirect_uri(mcp_server: dict) -> str:
+    """Primera URL del array en producción, última en local."""
+    if settings.ENVIRONMENT == "production":
+        return mcp_server["redirect_uris"][0]
+    return mcp_server["redirect_uris"][-1]
+
+
 def _register_dynamic_client(mcp_server: dict) -> dict:
-    """Registra el cliente en el AS (DCR) y devuelve el servidor con sus credenciales."""
     registration_endpoint = mcp_server["registration_endpoint"]
     if not registration_endpoint:
         raise ConnectionFlowError(
@@ -41,7 +50,7 @@ def _register_dynamic_client(mcp_server: dict) -> dict:
     try:
         registration = register_client(
             registration_endpoint=registration_endpoint,
-            redirect_uri=mcp_server["redirect_uri"],
+            redirect_uris=mcp_server["redirect_uris"],
             client_name=f"IntegraTrip - {mcp_server['name']}",
         )
     except DcrRegistrationError as exc:
@@ -71,7 +80,7 @@ def start_mcp_connection_flow(user_id: str, server_name: str) -> str:
     return build_authorization_url(
         authorization_endpoint=mcp_server["authorization_endpoint"],
         client_id=mcp_server["client_id"],
-        redirect_uri=mcp_server["redirect_uri"],
+        redirect_uri=_resolve_redirect_uri(mcp_server),
         state=state,
         code_challenge=transform_code_verifier_to_code_challenge(code_verifier),
         resource=mcp_server["mcp_url"],
@@ -101,7 +110,7 @@ def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dic
             token_endpoint=mcp_server["token_endpoint"],
             client_id=mcp_server["client_id"],
             client_secret=mcp_server["client_secret_enc"],
-            redirect_uri=mcp_server["redirect_uri"],
+            redirect_uri=_resolve_redirect_uri(mcp_server),
             code=code,
             code_verifier=mcp_state["code_verifier"],
         )
