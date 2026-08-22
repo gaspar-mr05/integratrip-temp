@@ -1,7 +1,4 @@
-"""Dynamic Client Registration (DCR): registra el cliente en el AS antes del flujo.
 
-El resto del flujo (authorization URL + token exchange) es el mismo de PRE.
-"""
 
 import logging
 
