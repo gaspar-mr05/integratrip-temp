@@ -1,4 +1,4 @@
-from app.db.mcp_connections import upsert_mcp_connection
+from app.db.mcp_connections import upsert_mcp_connection, get_mcp_connection
 from app.db.mcp_servers import get_mcp_server_by_name, update_mcp_server_credentials
 from app.db.oauth_mcp_state import consume_mcp_state, insert_mcp_state
 from app.security.pkce import (
@@ -10,6 +10,7 @@ from app.services.oauth.authorization_code import (
     OAuthTokenExchangeError,
     build_authorization_url,
     exchange_code_for_tokens,
+    refresh_access_token
 )
 from app.services.oauth.dcr import DcrRegistrationError, register_client
 from app.services.oauth.state_expiry import is_state_expired
@@ -147,3 +148,41 @@ def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dic
     if connection is None:
         raise ConnectionFlowError("No se pudo guardar la conexión con el servidor MCP")
     return connection
+
+def get_valid_access_token(user_id: str, server_name: str) -> str:
+    mcp_server = _get_mcp_server(server_name)
+    mcp_connection = get_mcp_connection(user_id, mcp_server["id"])
+    if mcp_connection is None:
+        raise ConnectionFlowError(f"No has conectado '{server_name}' todavía")
+
+    access_token = mcp_connection["access_token_enc"]
+    refresh_token = mcp_connection["refresh_token_enc"]
+    expires_at = mcp_connection["expires_at"]
+
+    if expires_at is not None and is_state_expired(expires_at):
+        if refresh_token is None:
+            raise ConnectionFlowError(f"El access_token de '{server_name}' expiró y no hay refresh_token")
+        try:
+            tokens = refresh_access_token(
+                token_endpoint=mcp_server["token_endpoint"],
+                client_id=mcp_server["client_id"],
+                client_secret=_client_secret(mcp_server),
+                refresh_token=refresh_token,
+            )
+        except OAuthTokenExchangeError as exc:
+            raise ConnectionFlowError(str(exc)) from exc
+
+        access_token = tokens.get("access_token")
+        if access_token is None:
+            raise ConnectionFlowError("El servidor de autorización no devolvió un access_token al refrescar")
+
+        upsert_mcp_connection(
+            user_id=user_id,
+            mcp_server_id=mcp_server["id"],
+            access_token=access_token,
+            refresh_token=tokens.get("refresh_token"),
+            expires_in=tokens.get("expires_in"),
+            scope=tokens.get("scope"),
+        )
+
+    return access_token

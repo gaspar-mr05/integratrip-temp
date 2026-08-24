@@ -10,6 +10,9 @@ from app.services.mcp_connection_service import (
     complete_mcp_connection_flow,
 )
 
+from app.db.mcp_connections import get_mcp_connection
+from app.db.mcp_servers import get_mcp_server_by_name
+
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
@@ -44,3 +47,16 @@ def mcp_callback(
 
     settings = get_settings()
     return RedirectResponse(settings.FRONTEND_URL)
+
+
+@router.get("/{server_name}/tools")
+def list_tools(server_name: str, user_id: str = Depends(get_current_user_id)):
+    mcp_server = get_mcp_server_by_name(server_name)
+    if mcp_server is None:
+        raise HTTPException(status_code=404, detail=f"No existe el servidor MCP '{server_name}'")
+
+    mcp_connection = get_mcp_connection(user_id, mcp_server["id"])
+    if mcp_connection is None:
+        raise HTTPException(status_code=404, detail=f"No has conectado '{server_name}' todavía")
+
+    access_token = mcp_connection["access_token_enc"]
