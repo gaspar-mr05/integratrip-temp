@@ -57,11 +57,3 @@ def get_mcp_connection(user_id: str, mcp_server_id: str) -> dict | None:
         .execute()
     )
     return result.data[0] if result.data else None
-
-
-def list_mcp_connections(user_id: str) -> list[dict]:
-    supabase = get_supabase_client()
-    result = supabase.table("mcp_connections").select("*").eq("user_id", user_id).execute()
-    return result.data or []
-
-

@@ -9,9 +9,9 @@ from app.security.pkce import (
     transform_code_verifier_to_code_challenge,
 )
 from app.security.session import create_session_token
-from app.security.access_token import read_access_token_claims
+from app.security.access_token import read_unverified_access_token_claims
 from app.services.oauth import authorization_code
-from app.services.oauth.state_expiry import is_state_expired
+from app.services.oauth.expiration import is_expired
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def consume_code_verifier(state: str) -> str:
     if login_state is None:
         raise InvalidLoginStateError("El state no existe o ya fue utilizado")
 
-    if is_state_expired(login_state["expires_at"]):
+    if is_expired(login_state["expires_at"]):
         raise InvalidLoginStateError("El flujo de login expiró, intenta nuevamente")
 
     return login_state["code_verifier"]
@@ -68,6 +68,7 @@ def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
             redirect_uri=settings.LOGIN_REDIRECT_URI,
             code=code,
             code_verifier=code_verifier,
+            resource=settings.BACKEND_URL,
         )
     except authorization_code.OAuthTokenExchangeError as exc:
         raise TokenExchangeError(str(exc)) from exc
@@ -81,6 +82,6 @@ def complete_login(code: str, code_verifier: str) -> str:
         logger.error("El AS no devolvió access_token: %s", sorted(tokens))
         raise TokenExchangeError("El servidor de autorización no devolvió un access_token")
 
-    claims = read_access_token_claims(access_token)
+    claims = read_unverified_access_token_claims(access_token)
     user = upsert_user(as_subject=claims["sub"], email=claims.get("email"))
     return create_session_token(user["id"])

@@ -23,7 +23,6 @@ def insert_login_state(state: str, code_verifier: str) -> bool:
     return bool(result.data)
 
 
-
 def consume_login_state(state: str) -> dict | None:
     result = (
         get_supabase_client()

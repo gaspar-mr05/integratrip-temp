@@ -1,5 +1,6 @@
-from app.db.supabase_client import get_supabase_client
 import logging
+
+from app.db.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

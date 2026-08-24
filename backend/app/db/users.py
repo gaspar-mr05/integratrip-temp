@@ -1,7 +1,9 @@
 from app.db.supabase_client import get_supabase_client
 
+
 class UserUpsertError(Exception):
     pass
+
 
 def upsert_user(as_subject: str, email: str | None) -> dict:
     supabase = get_supabase_client()

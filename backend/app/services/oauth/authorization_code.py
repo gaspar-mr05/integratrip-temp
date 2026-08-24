@@ -35,6 +35,27 @@ def build_authorization_url(
     return f"{authorization_endpoint}?{urlencode(params)}"
 
 
+def _post_token_request(token_endpoint: str, data: dict, grant_description: str) -> dict:
+    try:
+        response = requests.post(token_endpoint, data=data, timeout=TOKEN_REQUEST_TIMEOUT)
+    except requests.RequestException as exc:
+        logger.exception("Falló la conexión con el token endpoint del AS")
+        raise OAuthTokenExchangeError("No se pudo contactar al servidor de autorización") from exc
+
+    if response.status_code != 200:
+        logger.error(
+            "El AS rechazó el %s: %s %s",
+            grant_description,
+            response.status_code,
+            response.text,
+        )
+        raise OAuthTokenExchangeError(
+            f"El servidor de autorización rechazó el {grant_description}"
+        )
+
+    return response.json()
+
+
 def exchange_code_for_tokens(
     *,
     token_endpoint: str,
@@ -42,6 +63,7 @@ def exchange_code_for_tokens(
     redirect_uri: str,
     code: str,
     code_verifier: str,
+    resource: str,
     client_secret: str | None = None,
 ) -> dict:
     data = {
@@ -50,25 +72,12 @@ def exchange_code_for_tokens(
         "redirect_uri": redirect_uri,
         "client_id": client_id,
         "code_verifier": code_verifier,
+        "resource": resource,
     }
     if client_secret is not None:
         data["client_secret"] = client_secret
 
-    try:
-        response = requests.post(token_endpoint, data=data, timeout=TOKEN_REQUEST_TIMEOUT)
-    except requests.RequestException as exc:
-        logger.exception("Fallo la conexión con el token endpoint del AS")
-        raise OAuthTokenExchangeError("No se pudo contactar al servidor de autorización") from exc
-
-    if response.status_code != 200:
-        logger.error(
-            "El AS rechazó el intercambio de código: %s %s",
-            response.status_code,
-            response.text,
-        )
-        raise OAuthTokenExchangeError("El servidor de autorización rechazó el código")
-
-    return response.json()
+    return _post_token_request(token_endpoint, data, "intercambio de código")
 
 
 def refresh_access_token(
@@ -76,28 +85,16 @@ def refresh_access_token(
     token_endpoint: str,
     client_id: str,
     refresh_token: str,
+    resource: str,
     client_secret: str | None = None,
 ) -> dict:
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
         "client_id": client_id,
+        "resource": resource,
     }
     if client_secret is not None:
         data["client_secret"] = client_secret
 
-    try:
-        response = requests.post(token_endpoint, data=data, timeout=TOKEN_REQUEST_TIMEOUT)
-    except requests.RequestException as exc:
-        logger.exception("Fallo la conexión con el token endpoint del AS")
-        raise OAuthTokenExchangeError("No se pudo contactar al servidor de autorización") from exc
-
-    if response.status_code != 200:
-        logger.error(
-            "El AS rechazó el refresh de token: %s %s",
-            response.status_code,
-            response.text,
-        )
-        raise OAuthTokenExchangeError("El servidor de autorización rechazó el refresh")
-
-    return response.json()
+    return _post_token_request(token_endpoint, data, "refresh de token")

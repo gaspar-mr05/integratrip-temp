@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
@@ -6,12 +6,12 @@ from app.security.session import get_current_user_id
 from app.services.mcp_connection_service import (
     ConnectionFlowError,
     InvalidConnectionStateError,
-    start_mcp_connection_flow,
+    McpNotConnectedError,
+    McpServerNotFoundError,
     complete_mcp_connection_flow,
+    start_mcp_connection_flow,
 )
-
-from app.db.mcp_connections import get_mcp_connection
-from app.db.mcp_servers import get_mcp_server_by_name
+from app.services.mcp_tools_service import McpProtocolError, list_server_tools
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -20,8 +20,10 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
 def connect_mcp_server(server_name: str, user_id: str = Depends(get_current_user_id)):
     try:
         url = start_mcp_connection_flow(user_id, server_name)
+    except McpServerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConnectionFlowError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return RedirectResponse(url)
 
 
@@ -34,29 +36,33 @@ def mcp_callback(
     error_description: str | None = None,
 ):
     if error is not None:
-        raise HTTPException(status_code=400, detail=error_description or error)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_description or error)
     if code is None or state is None:
-        raise HTTPException(status_code=400, detail="Faltan los parámetros code y state")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Faltan los parámetros code y state"
+        )
 
     try:
         complete_mcp_connection_flow(server_name, state, code)
+    except McpServerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except InvalidConnectionStateError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ConnectionFlowError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    settings = get_settings()
-    return RedirectResponse(settings.FRONTEND_URL)
+    return RedirectResponse(get_settings().FRONTEND_URL)
 
 
 @router.get("/{server_name}/tools")
-def list_tools(server_name: str, user_id: str = Depends(get_current_user_id)):
-    mcp_server = get_mcp_server_by_name(server_name)
-    if mcp_server is None:
-        raise HTTPException(status_code=404, detail=f"No existe el servidor MCP '{server_name}'")
+async def list_tools(server_name: str, user_id: str = Depends(get_current_user_id)):
+    try:
+        tools = await list_server_tools(user_id, server_name)
+    except McpServerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except McpNotConnectedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (ConnectionFlowError, McpProtocolError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    mcp_connection = get_mcp_connection(user_id, mcp_server["id"])
-    if mcp_connection is None:
-        raise HTTPException(status_code=404, detail=f"No has conectado '{server_name}' todavía")
-
-    access_token = mcp_connection["access_token_enc"]
+    return {"tools": tools}
