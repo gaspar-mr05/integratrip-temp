@@ -16,9 +16,9 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
       <div className="mx-auto flex min-h-18 max-w-7xl items-center justify-between gap-4">
         <Link className="group inline-flex items-center gap-2.5 text-base font-semibold tracking-tight text-slate-950 no-underline" to="/">
           <span className="grid size-7 place-items-center rounded-sm bg-slate-950 text-xs font-bold tracking-tight text-white transition-transform duration-200 group-hover:-rotate-3">
-            I
+            GMR
           </span>
-          IntegraTrip
+          MagnaTrip
         </Link>
 
         <nav className="flex items-center gap-2 sm:gap-3" aria-label="Principal">
