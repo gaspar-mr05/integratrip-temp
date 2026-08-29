@@ -12,9 +12,9 @@ class Settings(BaseSettings):
 
     LOGIN_CLIENT_ID: str
     LOGIN_CLIENT_SECRET: str
-    LOGIN_REDIRECT_URI: str
 
     BACKEND_URL: str
+    PUBLIC_API_URL: str
     ENVIRONMENT: str = "local"
 
     SUPABASE_URL: str
@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     SESSION_SECRET_KEY: str = Field(min_length=32)
 
     FRONTEND_URL: str
+
+    @property
+    def login_redirect_uri(self) -> str:
+        return f"{self.PUBLIC_API_URL.rstrip('/')}/auth/callback"
+
+    def mcp_redirect_uri(self, server_name: str) -> str:
+        return f"{self.PUBLIC_API_URL.rstrip('/')}/mcp/{server_name}/callback"
+
+    @property
+    def client_metadata_url(self) -> str:
+        return f"{self.PUBLIC_API_URL.rstrip('/')}/.well-known/oauth-client-metadata.json"
 
 
 @lru_cache

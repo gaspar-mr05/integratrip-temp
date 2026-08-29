@@ -70,9 +70,12 @@ def mcp_endpoint(mcp_server: dict) -> str:
 
 
 def _redirect_uri(mcp_server: dict) -> str:
-    if get_settings().ENVIRONMENT == "production":
-        return mcp_server["redirect_uris"][0]
-    return mcp_server["redirect_uris"][-1]
+    redirect_uri = get_settings().mcp_redirect_uri(mcp_server["name"])
+    if redirect_uri not in mcp_server["redirect_uris"]:
+        raise ConnectionFlowError(
+            f"El redirect_uri público de '{mcp_server['name']}' no está registrado"
+        )
+    return redirect_uri
 
 
 def _client_secret(mcp_server: dict) -> str | None:

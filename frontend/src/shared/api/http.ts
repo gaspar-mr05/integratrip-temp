@@ -8,9 +8,7 @@ export class ApiError extends Error {
   }
 }
 
-export const BACKEND_URL = import.meta.env.PROD
-  ? '/api'
-  : (import.meta.env.VITE_BACKEND_URL as string)
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
 function isErrorPayload(value: unknown): value is { detail: string } {
   return (
@@ -34,7 +32,7 @@ export async function requestJson<TResponse>(
   path: string,
   init?: RequestInit,
 ): Promise<TResponse> {
-  const response = await fetch(`${BACKEND_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     ...init,
     headers: {

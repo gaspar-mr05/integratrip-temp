@@ -19,13 +19,7 @@ def oauth_client_metadata():
         )
 
 
-    metadata_base_url = (
-        get_settings().BACKEND_URL
-        if get_settings().ENVIRONMENT == "local"
-        else f"{get_settings().FRONTEND_URL}/api"
-    )
-
     return build_client_metadata(
-        metadata_url=f"{metadata_base_url}{CLIENT_METADATA_PATH}",
+        metadata_url=get_settings().client_metadata_url,
         redirect_uris=mcp_server["redirect_uris"],
     )

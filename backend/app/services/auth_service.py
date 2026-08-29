@@ -40,7 +40,7 @@ def start_login_flow() -> str:
     return authorization_code.build_authorization_url(
         authorization_endpoint=settings.AS_AUTHORIZATION_ENDPOINT,
         client_id=settings.LOGIN_CLIENT_ID,
-        redirect_uri=settings.LOGIN_REDIRECT_URI,
+        redirect_uri=settings.login_redirect_uri,
         state=state,
         code_challenge=transform_code_verifier_to_code_challenge(code_verifier),
         resource=settings.BACKEND_URL,
@@ -65,7 +65,7 @@ def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
             token_endpoint=settings.AS_TOKEN_ENDPOINT,
             client_id=settings.LOGIN_CLIENT_ID,
             client_secret=settings.LOGIN_CLIENT_SECRET,
-            redirect_uri=settings.LOGIN_REDIRECT_URI,
+            redirect_uri=settings.login_redirect_uri,
             code=code,
             code_verifier=code_verifier,
             resource=settings.BACKEND_URL,
