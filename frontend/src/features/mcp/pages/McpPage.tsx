@@ -32,19 +32,23 @@ export function McpPage() {
   const statuses = useMcpConnectionStatuses(mcpServerApiNames)
 
   return (
-    <section className="mx-auto grid w-full max-w-6xl gap-6">
-      <div className="grid gap-2">
-        <h1 className="text-4xl leading-none font-bold text-slate-950 md:text-6xl">
+    <section className="mx-auto grid w-full max-w-7xl gap-12">
+      <div className="grid max-w-2xl gap-3">
+        <p className="m-0 text-sm font-semibold tracking-[0.16em] text-blue-700 uppercase">
+          Directorio
+        </p>
+        <h1 className="m-0 text-4xl leading-none font-semibold tracking-[-0.04em] text-slate-950 md:text-6xl">
           Servidores MCP
         </h1>
-        <p className="m-0 text-slate-600">
+        <p className="m-0 text-base leading-7 text-slate-600">
           Conecta un servidor para listar y ejecutar sus tools.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {mcpServers.map((server) => (
+      <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+        {mcpServers.map((server, index) => (
           <McpCard
+            index={index + 1}
             key={server.serverName}
             serverName={server.serverName}
             serverApiName={server.serverApiName}

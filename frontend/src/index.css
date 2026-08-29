@@ -1,1 +1,29 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    background: #f7f7f5;
+  }
+
+  body {
+    min-width: 320px;
+    background: #f7f7f5;
+    color: #172033;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    background: #cfe0ff;
+    color: #172033;
+  }
+}

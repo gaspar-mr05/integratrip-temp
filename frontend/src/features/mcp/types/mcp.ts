@@ -1,7 +1,18 @@
 export type JsonSchemaProperty = {
+  example?: unknown
+  examples?: unknown[]
   default?: unknown
   description?: string
   enum?: unknown[]
+  format?: string
+  items?: JsonSchemaProperty
+  maximum?: number
+  maxLength?: number
+  minimum?: number
+  minLength?: number
+  pattern?: string
+  properties?: Record<string, JsonSchemaProperty>
+  required?: string[]
   title?: string
   type?: string | string[]
 }

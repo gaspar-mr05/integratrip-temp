@@ -1,44 +1,59 @@
-import { Button } from '../../../shared/ui'
+import { Button, ErrorMessage } from '../../../shared/ui'
 import { useMcpConnection, useMcpTools } from '../hooks'
 import type { McpConnectionStatus } from '../types'
 import { ToolsList } from './ToolsList'
+import { ToolsListSkeleton } from './ToolsListSkeleton'
 
 type Props = {
+  index: number
   serverName: string
   serverApiName: string
   status: McpConnectionStatus
 }
 
-export const McpCard = ({ serverName, serverApiName, status }: Props) => {
+export const McpCard = ({ index, serverName, serverApiName, status }: Props) => {
   const { connectMcpServer } = useMcpConnection()
   const { error, fetchTools, isLoading, tools } = useMcpTools()
 
   const hasTools = tools.length > 0
 
   return (
-    <article className="flex min-h-40 flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5">
-      <h2 className="m-0 text-xl leading-tight font-semibold text-slate-950">
-        {serverName}
-      </h2>
+    <article className="flex min-h-56 flex-col justify-between gap-6 border-t border-slate-300 py-5 transition-colors hover:border-slate-950">
+      <div className="grid gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold tracking-[0.14em] text-slate-400">0{index}</span>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status === 'connected' ? 'text-emerald-700' : 'text-slate-500'}`}>
+            <span className={`size-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+            {status === 'connected' ? 'Conectado' : 'Sin conectar'}
+          </span>
+        </div>
+        <div>
+          <h2 className="m-0 text-2xl leading-tight font-semibold tracking-[-0.03em] text-slate-950">
+            {serverName}
+          </h2>
+          <p className="mt-2 mb-0 text-sm text-slate-500">{serverApiName}</p>
+        </div>
+      </div>
 
       {status === 'connected' ? (
         <div className="grid gap-3">
-          <Button onClick={() => fetchTools(serverApiName)}>
-            {isLoading ? 'Cargando...' : 'Ver tools'}
+          <Button className="w-full sm:w-fit" onClick={() => fetchTools(serverApiName)}>
+            Ver tools
           </Button>
 
-          {hasTools ? (
+          {isLoading ? (
+            <ToolsListSkeleton />
+          ) : hasTools ? (
             <ToolsList serverName={serverApiName} tools={tools} />
           ) : null}
 
           {error ? (
-            <p className="m-0 text-sm text-red-600">{error.message}</p>
+            <ErrorMessage message={error.message} />
           ) : null}
         </div>
       ) : (
-        <Button onClick={() => connectMcpServer(serverApiName)}>Conectar</Button>
+        <Button className="w-full sm:w-fit" onClick={() => connectMcpServer(serverApiName)}>Conectar</Button>
       )}
     </article>
   )
 }
-

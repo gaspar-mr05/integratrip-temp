@@ -10,6 +10,24 @@ export class ApiError extends Error {
 
 export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string
 
+function isErrorPayload(value: unknown): value is { detail: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'detail' in value &&
+    typeof value.detail === 'string'
+  )
+}
+
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const payload: unknown = await response.json()
+    return isErrorPayload(payload) ? payload.detail : 'Request failed'
+  } catch {
+    return 'Request failed'
+  }
+}
+
 export async function requestJson<TResponse>(
   path: string,
   init?: RequestInit,
@@ -23,7 +41,7 @@ export async function requestJson<TResponse>(
   })
 
   if (!response.ok) {
-    throw new ApiError('Request failed', response.status)
+    throw new ApiError(await errorMessage(response), response.status)
   }
 
   return response.json() as Promise<TResponse>

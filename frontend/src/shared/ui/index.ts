@@ -1,3 +1,5 @@
 export * from './Button'
+export * from './ErrorMessage'
 export * from './Panel'
+export * from './Skeleton'
 export * from './TextInput'
