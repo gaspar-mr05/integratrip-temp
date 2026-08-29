@@ -1,7 +1,24 @@
+export type JsonSchemaProperty = {
+  default?: unknown
+  description?: string
+  enum?: unknown[]
+  title?: string
+  type?: string | string[]
+}
+
+export type JsonSchemaObject = {
+  description?: string
+  properties?: Record<string, JsonSchemaProperty>
+  required?: string[]
+  title?: string
+  type?: string
+}
+
 export type McpTool = {
   name: string
   description?: string
-  inputSchema?: unknown
+  input_schema?: JsonSchemaObject
+  inputSchema?: JsonSchemaObject
 }
 
 export type ListServerToolsResponse = {

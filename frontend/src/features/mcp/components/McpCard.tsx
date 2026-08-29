@@ -9,7 +9,7 @@ type Props = {
   status: McpConnectionStatus
 }
 
-const McpCard = ({ serverName, serverApiName, status }: Props) => {
+export const McpCard = ({ serverName, serverApiName, status }: Props) => {
   const { connectMcpServer } = useMcpConnection()
   const { error, fetchTools, isLoading, tools } = useMcpTools()
 
@@ -28,7 +28,7 @@ const McpCard = ({ serverName, serverApiName, status }: Props) => {
           </Button>
 
           {hasTools ? (
-            <ToolsList tools={tools} />
+            <ToolsList serverName={serverApiName} tools={tools} />
           ) : null}
 
           {error ? (
@@ -42,4 +42,3 @@ const McpCard = ({ serverName, serverApiName, status }: Props) => {
   )
 }
 
-export default McpCard

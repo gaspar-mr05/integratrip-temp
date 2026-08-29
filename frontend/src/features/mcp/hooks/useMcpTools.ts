@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { callServerTool, listServerTools } from '../api'
 import type {
@@ -20,7 +20,7 @@ export function useMcpTools() {
     tools: [],
   })
 
-  async function fetchTools(serverName: string): Promise<void> {
+  const fetchTools = useCallback(async (serverName: string): Promise<void> => {
     setState((currentState) => ({
       ...currentState,
       error: null,
@@ -40,15 +40,15 @@ export function useMcpTools() {
         isLoading: false,
       }))
     }
-  }
+  }, [])
 
-  function executeTool(
+  const executeTool = useCallback((
     serverName: string,
     toolName: string,
     toolArguments: ToolArguments,
-  ): Promise<CallServerToolResponse> {
+  ): Promise<CallServerToolResponse> => {
     return callServerTool(serverName, toolName, toolArguments)
-  }
+  }, [])
 
   return {
     error: state.error,
