@@ -43,7 +43,7 @@ async def _fetch_tools(endpoint: str, access_token: str) -> list[dict]:
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.list_tools()
-                return [tool.model_dump() for tool in result.tools]
+                return [tool.model_dump(by_alias=True) for tool in result.tools]
 
 
 async def list_server_tools(user_id: str, server_name: str) -> list[dict]:

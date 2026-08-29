@@ -9,11 +9,22 @@ from app.services.mcp_connection_service import (
     McpNotConnectedError,
     McpServerNotFoundError,
     complete_mcp_connection_flow,
+    get_mcp_connection_status,
     start_mcp_connection_flow,
 )
 from app.services.mcp_tools_service import McpProtocolError, list_server_tools, call_server_tool
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
+
+
+@router.get("/{server_name}/status")
+def mcp_connection_status(server_name: str, user_id: str = Depends(get_current_user_id)):
+    try:
+        return get_mcp_connection_status(user_id, server_name)
+    except McpServerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConnectionFlowError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 @router.get("/{server_name}/connect")

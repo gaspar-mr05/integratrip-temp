@@ -39,6 +39,23 @@ class McpNotConnectedError(Exception):
     pass
 
 
+def get_mcp_connection_status(user_id: str, server_name: str) -> dict:
+    mcp_server = resolve_mcp_server(server_name)
+    mcp_connection = get_mcp_connection(user_id, mcp_server["id"])
+
+    if mcp_connection is None or mcp_connection.get("status") != "active":
+        return {"connected": False, "status": "disconnected"}
+
+    expires_at = mcp_connection["expires_at"]
+    has_valid_access_token = expires_at is None or not is_expired(expires_at)
+    has_refresh_token = mcp_connection["refresh_token_enc"] is not None
+
+    if has_valid_access_token or has_refresh_token:
+        return {"connected": True, "status": "connected"}
+
+    return {"connected": False, "status": "disconnected"}
+
+
 def resolve_mcp_server(server_name: str) -> dict:
     mcp_server = get_mcp_server_by_name(server_name)
     if mcp_server is None:

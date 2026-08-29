@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    SESSION_SECRET_KEY: str = ""
+    SESSION_SECRET_KEY: str = Field(min_length=32)
 
     FRONTEND_URL: str
 

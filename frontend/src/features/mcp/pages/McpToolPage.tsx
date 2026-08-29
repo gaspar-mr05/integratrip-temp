@@ -92,7 +92,7 @@ export function McpToolPage() {
       ) : null}
 
       {result ? (
-        <pre className="overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm text-slate-50">
+        <pre className="max-h-[32rem] min-w-0 overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm text-slate-50">
           {JSON.stringify(result.output, null, 2)}
         </pre>
       ) : null}

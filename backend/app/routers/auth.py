@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 
 from app.db.users import UserUpsertError
 from app.security.session import clear_session_cookie, get_current_user_id, set_session_cookie
@@ -51,7 +51,7 @@ def callback(
     except UserUpsertError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    response = JSONResponse({"status": "authenticated"})
+    response = RedirectResponse(get_settings().FRONTEND_URL)
     set_session_cookie(response, session_token)
     return response
 
