@@ -38,7 +38,7 @@ def _parse_bearer_challenge(header: str | None) -> dict[str, str]:
 
 def _discover_resource_metadata_url(resource_url: str) -> str:
     try:
-        response = requests.get(resource_url, timeout=DISCOVERY_REQUEST_TIMEOUT)
+        response = requests.post(resource_url, timeout=DISCOVERY_REQUEST_TIMEOUT)
     except requests.RequestException as exc:
         logger.exception("Falló discovery inicial contra el recurso MCP")
         raise OAuthDiscoveryError("No se pudo contactar al recurso MCP") from exc

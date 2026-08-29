@@ -25,7 +25,11 @@ def register_client(
         "token_endpoint_auth_method": "client_secret_post",
     }
     try:
-        response = requests.post(registration_endpoint, json=data, timeout=REGISTER_REQUEST_TIMEOUT)
+        response = requests.post(
+            registration_endpoint,
+            json=data,
+            timeout=REGISTER_REQUEST_TIMEOUT,
+        )
     except requests.RequestException as exc:
         logger.exception("Fallo la conexión con el registration_endpoint del AS")
         raise DcrRegistrationError("No se pudo contactar al servidor de autorización") from exc
@@ -40,7 +44,10 @@ def register_client(
 
     registration = response.json()
     if not registration.get("client_id"):
-        logger.error("El AS registró el cliente sin devolver client_id: %s", registration)
+        logger.error(
+            "El AS registró el cliente sin devolver client_id. Campos recibidos: %s",
+            sorted(registration),
+        )
         raise DcrRegistrationError("El servidor de autorización no devolvió un client_id")
 
     if not registration.get("client_secret"):
