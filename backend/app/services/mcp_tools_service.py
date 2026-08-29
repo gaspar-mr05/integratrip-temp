@@ -5,6 +5,7 @@ import logging
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
+from mcp.shared.exceptions import MCPError
 
 from app.services.mcp_connection_service import (
     get_valid_access_token,
@@ -17,6 +18,23 @@ logger = logging.getLogger(__name__)
 
 class McpProtocolError(Exception):
     pass
+
+
+class McpToolExecutionError(Exception):
+    pass
+
+
+def _find_mcp_error(exc: BaseException) -> MCPError | None:
+    if isinstance(exc, MCPError):
+        return exc
+
+    if isinstance(exc, BaseExceptionGroup):
+        for nested_exc in exc.exceptions:
+            mcp_error = _find_mcp_error(nested_exc)
+            if mcp_error is not None:
+                return mcp_error
+
+    return None
 
 
 async def _log_http_errors(response) -> None:
@@ -93,6 +111,16 @@ async def call_server_tool(
             params,
         )
     except Exception as exc:
+        mcp_error = _find_mcp_error(exc)
+        if mcp_error is not None:
+            logger.info(
+                "La tool '%s' en '%s' respondió un error: %s",
+                tool_name,
+                server_name,
+                mcp_error.message,
+            )
+            raise McpToolExecutionError(mcp_error.message) from exc
+
         logger.exception(
             "Error llamando a la tool '%s' en '%s'",
             tool_name,

@@ -1,11 +1,17 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(BACKEND_DIR / ".env", BACKEND_DIR / ".env.local"),
+        extra="ignore",
+    )
 
     AS_AUTHORIZATION_ENDPOINT: str
     AS_TOKEN_ENDPOINT: str

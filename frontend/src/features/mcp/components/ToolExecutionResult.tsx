@@ -16,15 +16,21 @@ export function ToolExecutionResult({ result }: ToolExecutionResultProps) {
         Resultado
       </p>
       <div className="max-h-[32rem] min-w-0 overflow-auto rounded-md border border-slate-200 bg-white p-5 sm:p-6">
-        <div className="grid gap-6">
-          {blocks.map((block, index) =>
-            block.kind === 'text' ? (
-              <ResultText key={index} text={block.value} />
-            ) : (
-              <ResultData data={block.value} key={index} />
-            ),
-          )}
-        </div>
+        {blocks.length === 0 ? (
+          <p className="m-0 border-l-2 border-slate-300 pl-3 text-sm leading-6 text-slate-600">
+            No hay resultados para mostrar.
+          </p>
+        ) : (
+          <div className="grid gap-6">
+            {blocks.map((block, index) =>
+              block.kind === 'text' ? (
+                <ResultText key={index} text={block.value} />
+              ) : (
+                <ResultData data={block.value} key={index} />
+              ),
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

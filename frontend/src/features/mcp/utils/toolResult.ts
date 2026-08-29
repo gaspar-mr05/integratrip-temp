@@ -6,19 +6,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isEmptyDisplayValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() === ''
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0
+  }
+
+  if (isRecord(value)) {
+    return Object.keys(value).length === 0
+  }
+
+  return false
+}
+
 function textBlocksFromContent(value: unknown): ToolResultBlock[] {
   if (!Array.isArray(value)) {
     return []
   }
 
   return value.flatMap((content) =>
-    isRecord(content) && typeof content.text === 'string'
+    isRecord(content) && typeof content.text === 'string' && content.text.trim() !== ''
       ? [{ kind: 'text' as const, value: content.text }]
       : [],
   )
 }
 
+function isEmptyContent(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    (value.length === 0 ||
+      value.every(
+        (content) =>
+          isRecord(content) &&
+          typeof content.text === 'string' &&
+          content.text.trim() === '',
+      ))
+  )
+}
+
 export function resultBlocks(output: unknown): ToolResultBlock[] {
+  if (isEmptyDisplayValue(output)) {
+    return []
+  }
+
   if (!isRecord(output)) {
     return [{ kind: 'data', value: output }]
   }
@@ -30,7 +67,13 @@ export function resultBlocks(output: unknown): ToolResultBlock[] {
   }
 
   if ('structuredContent' in output) {
-    return [{ kind: 'data', value: output.structuredContent }]
+    return isEmptyDisplayValue(output.structuredContent)
+      ? []
+      : [{ kind: 'data', value: output.structuredContent }]
+  }
+
+  if (isEmptyContent(output.content)) {
+    return []
   }
 
   return [{ kind: 'data', value: output }]

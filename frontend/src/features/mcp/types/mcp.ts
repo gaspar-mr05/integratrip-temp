@@ -1,4 +1,5 @@
 export type JsonSchemaProperty = {
+  const?: unknown
   example?: unknown
   examples?: unknown[]
   default?: unknown

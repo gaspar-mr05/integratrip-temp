@@ -32,6 +32,127 @@ function defaultValueFor(property: JsonSchemaProperty): string {
     : JSON.stringify(property.default)
 }
 
+function valueMatchesStringConstraints(
+  property: JsonSchemaProperty,
+  value: string,
+): boolean {
+  if (property.minLength !== undefined && value.length < property.minLength) {
+    return false
+  }
+
+  if (property.maxLength !== undefined && value.length > property.maxLength) {
+    return false
+  }
+
+  if (!property.pattern) {
+    return true
+  }
+
+  try {
+    return new RegExp(property.pattern).test(value)
+  } catch {
+    return false
+  }
+}
+
+function formattedStringExample(property: JsonSchemaProperty): string | undefined {
+  const examplesByFormat: Record<string, string> = {
+    date: '2026-01-31',
+    'date-time': '2026-01-31T12:00:00Z',
+    email: 'nombre@ejemplo.com',
+    hostname: 'ejemplo.com',
+    ipv4: '192.0.2.1',
+    ipv6: '2001:db8::1',
+    time: '12:00:00',
+    uri: 'https://ejemplo.com',
+    url: 'https://ejemplo.com',
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+  }
+
+  const example = property.format ? examplesByFormat[property.format] : undefined
+
+  if (!example || !valueMatchesStringConstraints(property, example)) {
+    return undefined
+  }
+
+  return example
+}
+
+function descriptionExample(property: JsonSchemaProperty): string | undefined {
+  const description = property.description
+
+  if (!description) {
+    return undefined
+  }
+
+  const explicitExample = description.match(
+    /(?:e\.g\.|eg|example|ej\.|ejemplo)\s*:?\s*["'`]?([^"',;.)\s`]+)/i,
+  )?.[1]
+
+  if (explicitExample && valueMatchesStringConstraints(property, explicitExample)) {
+    return explicitExample
+  }
+
+  if (/yyyy-mm-dd/i.test(description)) {
+    const example = '2026-01-31'
+    return valueMatchesStringConstraints(property, example) ? example : undefined
+  }
+
+  if (/\biata\b/i.test(description)) {
+    const example = 'SCL'
+    return valueMatchesStringConstraints(property, example) ? example : undefined
+  }
+
+  return undefined
+}
+
+function numericExample(property: JsonSchemaProperty): number | undefined {
+  const type = propertyType(property)
+  const minimum = property.minimum
+  const maximum = property.maximum
+
+  if (minimum !== undefined && maximum !== undefined && minimum > maximum) {
+    return undefined
+  }
+
+  if (type === 'integer') {
+    const lowerBound = minimum === undefined ? Number.NEGATIVE_INFINITY : Math.ceil(minimum)
+    const upperBound = maximum === undefined ? Number.POSITIVE_INFINITY : Math.floor(maximum)
+
+    if (lowerBound > upperBound) {
+      return undefined
+    }
+
+    const example = Math.min(Math.max(1, lowerBound), upperBound)
+    return Number.isFinite(example) ? example : undefined
+  }
+
+  return Math.min(
+    Math.max(1.5, minimum ?? Number.NEGATIVE_INFINITY),
+    maximum ?? Number.POSITIVE_INFINITY,
+  )
+}
+
+function objectExample(property: JsonSchemaProperty): Record<string, unknown> | undefined {
+  if (!isRecord(property.properties)) {
+    return undefined
+  }
+
+  const entries: [string, unknown][] = []
+
+  for (const [name, nestedProperty] of Object.entries(property.properties)) {
+    const example = exampleValueFor(nestedProperty)
+
+    if (example !== undefined) {
+      entries.push([name, example])
+    } else if (property.required?.includes(name)) {
+      return undefined
+    }
+  }
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 function exampleValueFor(property: JsonSchemaProperty): unknown {
   if (property.examples?.[0] !== undefined) {
     return property.examples[0]
@@ -45,50 +166,38 @@ function exampleValueFor(property: JsonSchemaProperty): unknown {
     return property.default
   }
 
+  if (property.const !== undefined) {
+    return property.const
+  }
+
+  if (property.enum?.[0] !== undefined) {
+    return property.enum[0]
+  }
+
   const type = propertyType(property)
 
   if (type === 'array') {
-    return property.items ? [exampleValueFor(property.items)] : []
+    const itemExample = property.items ? exampleValueFor(property.items) : undefined
+    return itemExample === undefined ? undefined : [itemExample]
   }
 
   if (type === 'object') {
-    return Object.fromEntries(
-      Object.entries(property.properties ?? {}).map(([name, nestedProperty]) => [
-        name,
-        exampleValueFor(nestedProperty),
-      ]),
-    )
+    return objectExample(property)
   }
 
-  if (type === 'integer') {
-    return property.minimum ?? 1
-  }
-
-  if (type === 'number') {
-    return property.minimum ?? 1.5
+  if (type === 'integer' || type === 'number') {
+    return numericExample(property)
   }
 
   if (type === 'boolean') {
     return true
   }
 
-  if (property.format === 'date') {
-    return '2026-01-31'
+  if (type === 'string') {
+    return formattedStringExample(property) ?? descriptionExample(property)
   }
 
-  if (property.format === 'date-time') {
-    return '2026-01-31T12:00:00Z'
-  }
-
-  if (property.format === 'email') {
-    return 'nombre@ejemplo.com'
-  }
-
-  if (property.format === 'uri' || property.format === 'url') {
-    return 'https://ejemplo.com'
-  }
-
-  return 'Texto de ejemplo'
+  return undefined
 }
 
 export function fieldExample(property: JsonSchemaProperty): string | null {
@@ -99,6 +208,10 @@ export function fieldExample(property: JsonSchemaProperty): string | null {
   }
 
   const example = exampleValueFor(property)
+  if (example === undefined) {
+    return null
+  }
+
   return typeof example === 'string' ? example : JSON.stringify(example, null, 2)
 }
 
@@ -137,8 +250,40 @@ export function fieldExpectation(property: JsonSchemaProperty): string {
     return 'Formato esperado: correo electrónico.'
   }
 
+  if (property.format === 'hostname') {
+    return 'Formato esperado: nombre de host.'
+  }
+
+  if (property.format === 'ipv4') {
+    return 'Formato esperado: dirección IPv4.'
+  }
+
+  if (property.format === 'ipv6') {
+    return 'Formato esperado: dirección IPv6.'
+  }
+
+  if (property.format === 'time') {
+    return 'Formato esperado: hora.'
+  }
+
   if (property.format === 'uri' || property.format === 'url') {
     return 'Formato esperado: URL completa.'
+  }
+
+  if (property.format === 'uuid') {
+    return 'Formato esperado: UUID.'
+  }
+
+  if (property.pattern) {
+    return `Debe cumplir el patrón: ${property.pattern}.`
+  }
+
+  if (property.description && /\biata\b/i.test(property.description)) {
+    return 'Formato esperado: código IATA.'
+  }
+
+  if (property.description && /yyyy-mm-dd/i.test(property.description)) {
+    return 'Formato esperado: AAAA-MM-DD.'
   }
 
   return 'Ingresa texto.'
