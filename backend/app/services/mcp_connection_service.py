@@ -16,6 +16,7 @@ from app.services.oauth.authorization_code import (
     refresh_access_token,
 )
 from app.services.oauth.dcr import DcrRegistrationError, register_client
+from app.services.oauth.discovery import OAuthDiscoveryError, discover_mcp_oauth_metadata
 from app.services.oauth.expiration import is_expired
 
 SUPPORTED_AUTH_TYPES = ("PRE", "DCR", "CIMD")
@@ -66,7 +67,39 @@ def resolve_mcp_server(server_name: str) -> dict:
 
 
 def mcp_endpoint(mcp_server: dict) -> str:
-    return f"{mcp_server['mcp_url']}/mcp"
+    return f"{mcp_server['mcp_url'].rstrip('/')}/mcp"
+
+
+def _oauth_resource(mcp_server: dict) -> str:
+    return mcp_server.get("oauth_resource") or mcp_endpoint(mcp_server)
+
+
+def _oauth_scope(mcp_server: dict) -> str:
+    return mcp_server.get("oauth_scope") or MCP_SCOPE
+
+
+def _with_discovered_oauth_metadata(mcp_server: dict) -> dict:
+    try:
+        metadata = discover_mcp_oauth_metadata(mcp_endpoint(mcp_server))
+    except OAuthDiscoveryError as exc:
+        raise ConnectionFlowError(str(exc)) from exc
+
+    discovered = {
+        **mcp_server,
+        "authorization_endpoint": metadata["authorization_endpoint"],
+        "token_endpoint": metadata["token_endpoint"],
+        "registration_endpoint": metadata.get("registration_endpoint"),
+        "oauth_resource": metadata["resource"],
+        "oauth_scope": metadata["scope"],
+    }
+
+    if discovered["auth_type"] == "DCR" and not discovered["registration_endpoint"]:
+        raise ConnectionFlowError("El AS descubierto no publica registration_endpoint para DCR")
+
+    if discovered["auth_type"] == "CIMD" and not metadata["client_id_metadata_document_supported"]:
+        raise ConnectionFlowError("El AS descubierto no soporta client metadata document")
+
+    return discovered
 
 
 def _redirect_uri(mcp_server: dict) -> str:
@@ -108,11 +141,18 @@ def _register_dynamic_client(mcp_server: dict) -> dict:
     )
     if updated is None:
         raise ConnectionFlowError("No se pudo guardar el cliente registrado dinámicamente")
-    return updated
+    return {
+        **updated,
+        "authorization_endpoint": mcp_server["authorization_endpoint"],
+        "token_endpoint": mcp_server["token_endpoint"],
+        "registration_endpoint": mcp_server["registration_endpoint"],
+        "oauth_resource": _oauth_resource(mcp_server),
+        "oauth_scope": _oauth_scope(mcp_server),
+    }
 
 
 def start_mcp_connection_flow(user_id: str, server_name: str) -> str:
-    mcp_server = resolve_mcp_server(server_name)
+    mcp_server = _with_discovered_oauth_metadata(resolve_mcp_server(server_name))
     if mcp_server["auth_type"] == "DCR" and not mcp_server["client_id"]:
         mcp_server = _register_dynamic_client(mcp_server)
 
@@ -133,8 +173,8 @@ def start_mcp_connection_flow(user_id: str, server_name: str) -> str:
         redirect_uri=_redirect_uri(mcp_server),
         state=state,
         code_challenge=transform_code_verifier_to_code_challenge(code_verifier),
-        resource=mcp_endpoint(mcp_server),
-        scope=MCP_SCOPE,
+        resource=_oauth_resource(mcp_server),
+        scope=_oauth_scope(mcp_server),
     )
 
 
@@ -153,7 +193,7 @@ def _consume_connection_state(state: str, mcp_server_id: str) -> dict:
 
 
 def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dict:
-    mcp_server = resolve_mcp_server(server_name)
+    mcp_server = _with_discovered_oauth_metadata(resolve_mcp_server(server_name))
     mcp_state = _consume_connection_state(state, mcp_server["id"])
 
     try:
@@ -164,7 +204,7 @@ def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dic
             redirect_uri=_redirect_uri(mcp_server),
             code=code,
             code_verifier=mcp_state["code_verifier"],
-            resource=mcp_endpoint(mcp_server),
+            resource=_oauth_resource(mcp_server),
         )
     except OAuthTokenExchangeError as exc:
         raise ConnectionFlowError(str(exc)) from exc
@@ -187,13 +227,15 @@ def complete_mcp_connection_flow(server_name: str, state: str, code: str) -> dic
 
 
 def _refresh_connection(mcp_server: dict, user_id: str, refresh_token: str) -> str:
+    mcp_server = _with_discovered_oauth_metadata(mcp_server)
+
     try:
         tokens = refresh_access_token(
             token_endpoint=mcp_server["token_endpoint"],
             client_id=mcp_server["client_id"],
             client_secret=_client_secret(mcp_server),
             refresh_token=refresh_token,
-            resource=mcp_endpoint(mcp_server),
+            resource=_oauth_resource(mcp_server),
         )
     except OAuthTokenExchangeError as exc:
         raise ConnectionFlowError(str(exc)) from exc

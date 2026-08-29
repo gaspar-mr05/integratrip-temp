@@ -20,7 +20,7 @@ def build_authorization_url(
     state: str,
     code_challenge: str,
     resource: str,
-    scope: str = "openid",
+    scope: str = "mcp:tools",
 ) -> str:
     params = {
         "response_type": "code",

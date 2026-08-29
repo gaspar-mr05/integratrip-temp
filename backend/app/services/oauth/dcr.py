@@ -11,11 +11,16 @@ class DcrRegistrationError(Exception):
     pass
 
 
-def register_client(*, registration_endpoint: str, redirect_uris: list[str], client_name: str) -> dict:
+def register_client(
+    *,
+    registration_endpoint: str,
+    redirect_uris: list[str],
+    client_name: str,
+) -> dict:
     data = {
         "client_name": client_name,
         "redirect_uris": redirect_uris,
-        "grant_types": ["authorization_code"],
+        "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
         "token_endpoint_auth_method": "client_secret_post",
     }
@@ -37,5 +42,9 @@ def register_client(*, registration_endpoint: str, redirect_uris: list[str], cli
     if not registration.get("client_id"):
         logger.error("El AS registró el cliente sin devolver client_id: %s", registration)
         raise DcrRegistrationError("El servidor de autorización no devolvió un client_id")
+
+    if not registration.get("client_secret"):
+        logger.error("El AS registró un cliente confidencial sin devolver client_secret")
+        raise DcrRegistrationError("El servidor de autorización no devolvió un client_secret")
 
     return registration

@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlparse
 
 from app.config import get_settings
 from app.db.oauth_login_state import consume_login_state, insert_login_state
@@ -15,6 +16,8 @@ from app.services.oauth.expiration import is_expired
 
 logger = logging.getLogger(__name__)
 
+LOGIN_SCOPE = "mcp:tools"
+
 
 class LoginFlowError(Exception):
     pass
@@ -26,6 +29,17 @@ class InvalidLoginStateError(Exception):
 
 class TokenExchangeError(Exception):
     pass
+
+
+def _origin(url: str) -> str:
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        raise LoginFlowError("El redirect_uri de login no permite calcular un origin válido")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _login_resource() -> str:
+    return _origin(get_settings().login_redirect_uri)
 
 
 def start_login_flow() -> str:
@@ -43,7 +57,8 @@ def start_login_flow() -> str:
         redirect_uri=settings.login_redirect_uri,
         state=state,
         code_challenge=transform_code_verifier_to_code_challenge(code_verifier),
-        resource=settings.BACKEND_URL,
+        resource=_login_resource(),
+        scope=LOGIN_SCOPE,
     )
 
 
@@ -68,7 +83,7 @@ def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
             redirect_uri=settings.login_redirect_uri,
             code=code,
             code_verifier=code_verifier,
-            resource=settings.BACKEND_URL,
+            resource=_login_resource(),
         )
     except authorization_code.OAuthTokenExchangeError as exc:
         raise TokenExchangeError(str(exc)) from exc
