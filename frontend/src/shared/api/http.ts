@@ -8,7 +8,9 @@ export class ApiError extends Error {
   }
 }
 
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string
+export const BACKEND_URL = import.meta.env.PROD
+  ? '/api'
+  : (import.meta.env.VITE_BACKEND_URL as string)
 
 function isErrorPayload(value: unknown): value is { detail: string } {
   return (
