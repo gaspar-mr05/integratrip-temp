@@ -1,6 +1,8 @@
 .env
 .env.example
 .env.local
+.claude/
+.vscode/
 __pycache__/
 node_modules/
 .venv/
@@ -8,3 +10,4 @@ dist/
 modelos.png
 AGENTS.md
 CLAUDE.md
+export_codex_chats.py

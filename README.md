@@ -1,4 +1,4 @@
-# IntegraTrip
+# IntegraTrip / MagnaTrip
 
 ## Frontend
 
