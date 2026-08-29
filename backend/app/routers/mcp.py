@@ -11,7 +11,7 @@ from app.services.mcp_connection_service import (
     complete_mcp_connection_flow,
     start_mcp_connection_flow,
 )
-from app.services.mcp_tools_service import McpProtocolError, list_server_tools
+from app.services.mcp_tools_service import McpProtocolError, list_server_tools, call_server_tool
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -66,3 +66,27 @@ async def list_tools(server_name: str, user_id: str = Depends(get_current_user_i
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     return {"tools": tools}
+
+
+@router.post("/{server_name}/tools/{tool_name}/call")
+async def call_tool(
+    server_name: str,
+    tool_name: str,
+    arguments: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    try:
+        tool_output = await call_server_tool(
+            user_id,
+            server_name,
+            tool_name,
+            arguments,
+        )
+    except McpServerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except McpNotConnectedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (ConnectionFlowError, McpProtocolError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return {"output": tool_output}

@@ -1,4 +1,4 @@
-"""Usar las tools de un servidor MCP ya conectado."""
+
 
 import logging
 
@@ -55,3 +55,49 @@ async def list_server_tools(user_id: str, server_name: str) -> list[dict]:
     except Exception as exc:
         logger.exception("Error consultando las tools de '%s'", server_name)
         raise McpProtocolError(f"Error consultando las tools de '{server_name}'") from exc
+
+
+
+async def _call_tool(
+    endpoint: str,
+    access_token: str,
+    tool_name: str,
+    params: dict,
+) -> dict:
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    async with create_mcp_http_client(headers=headers) as http_client:
+        http_client.event_hooks["response"].append(_log_http_errors)
+
+        async with streamable_http_client(endpoint, http_client=http_client) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, params)
+                return result.model_dump()
+
+
+async def call_server_tool(
+    user_id: str,
+    server_name: str,
+    tool_name: str,
+    params: dict,
+) -> dict:
+    mcp_server = resolve_mcp_server(server_name)
+    access_token = get_valid_access_token(user_id, mcp_server)
+
+    try:
+        return await _call_tool(
+            mcp_endpoint(mcp_server),
+            access_token,
+            tool_name,
+            params,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Error llamando a la tool '%s' en '%s'",
+            tool_name,
+            server_name,
+        )
+        raise McpProtocolError(
+            f"Error llamando a la tool '{tool_name}' en '{server_name}'"
+        ) from exc
