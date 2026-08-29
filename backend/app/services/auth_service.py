@@ -59,6 +59,7 @@ def start_login_flow() -> str:
         code_challenge=transform_code_verifier_to_code_challenge(code_verifier),
         resource=_login_resource(),
         scope=LOGIN_SCOPE,
+        prompt="login",
     )
 
 

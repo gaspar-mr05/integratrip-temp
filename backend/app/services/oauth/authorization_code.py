@@ -21,6 +21,7 @@ def build_authorization_url(
     code_challenge: str,
     resource: str,
     scope: str = "mcp:tools",
+    prompt: str | None = None,
 ) -> str:
     params = {
         "response_type": "code",
@@ -32,6 +33,9 @@ def build_authorization_url(
         "code_challenge_method": "S256",
         "resource": resource,
     }
+    if prompt is not None:
+        params["prompt"] = prompt
+
     return f"{authorization_endpoint}?{urlencode(params)}"
 
 
