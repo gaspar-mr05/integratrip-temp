@@ -18,7 +18,14 @@ def oauth_client_metadata():
             status_code=500, detail=f"No existe el servidor MCP '{CIMD_SERVER_NAME}'"
         )
 
+
+    metadata_base_url = (
+        get_settings().BACKEND_URL
+        if get_settings().ENVIRONMENT == "local"
+        else f"{get_settings().FRONTEND_URL}/api"
+    )
+
     return build_client_metadata(
-        metadata_url=f"{get_settings().BACKEND_URL}{CLIENT_METADATA_PATH}",
+        metadata_url=f"{metadata_base_url}{CLIENT_METADATA_PATH}",
         redirect_uris=mcp_server["redirect_uris"],
     )
