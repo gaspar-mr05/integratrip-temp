@@ -1,0 +1,57 @@
+import { McpCard } from '../components'
+import { useMcpConnectionStatuses } from '../hooks'
+import type { McpConnectionStatus } from '../types'
+
+type McpServerViewModel = {
+  serverName: string
+  serverApiName: string
+  status: McpConnectionStatus
+}
+
+const mcpServers: McpServerViewModel[] = [
+  {
+    serverName: 'Andes Air',
+    serverApiName: 'andes-air',
+    status: 'disconnected',
+  },
+  {
+    serverName: 'StayWell',
+    serverApiName: 'staywell',
+    status: 'disconnected',
+  },
+  {
+    serverName: 'Cielo Sur',
+    serverApiName: 'cielo-sur',
+    status: 'disconnected',
+  },
+]
+
+const mcpServerApiNames = mcpServers.map((server) => server.serverApiName)
+
+export function McpPage() {
+  const statuses = useMcpConnectionStatuses(mcpServerApiNames)
+
+  return (
+    <section className="mx-auto grid w-full max-w-6xl gap-6">
+      <div className="grid gap-2">
+        <h1 className="text-4xl leading-none font-bold text-slate-950 md:text-6xl">
+          Servidores MCP
+        </h1>
+        <p className="m-0 text-slate-600">
+          Conecta un servidor para listar y ejecutar sus tools.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {mcpServers.map((server) => (
+          <McpCard
+            key={server.serverName}
+            serverName={server.serverName}
+            serverApiName={server.serverApiName}
+            status={statuses[server.serverApiName] ?? server.status}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
