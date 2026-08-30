@@ -1,6 +1,6 @@
 export function LandingPage() {
   return (
-    <section className="mx-auto grid min-h-[calc(100svh-9rem)] w-full max-w-7xl content-center gap-12 py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,.75fr)] lg:gap-24">
+    <section className="mx-auto grid min-h-[calc(100svh-9.5rem)] w-full max-w-7xl content-center gap-12 sm:min-h-[calc(100svh-11.5rem)] lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,.75fr)] lg:gap-24">
       <div className="grid content-center gap-7">
         <p className="m-0 text-sm font-semibold tracking-[0.16em] text-blue-700 uppercase">
           Plataforma de integración
