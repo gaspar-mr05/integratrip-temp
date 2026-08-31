@@ -49,9 +49,16 @@ def clear_session_cookie(response: Response) -> None:
 def read_session_user_id(token: str) -> str | None:
     try:
         claims = decode_session_token(token)
-        return claims.get("sub")
+        user_id = claims.get("sub")
+        return user_id if isinstance(user_id, str) and user_id else None
     except Exception:
         return None
+
+
+def get_optional_session_user_id(session_token: str | None) -> str | None:
+    if session_token is None:
+        return None
+    return read_session_user_id(session_token)
 
 
 def get_current_user_id(
@@ -62,7 +69,7 @@ def get_current_user_id(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No se proporcionó un token de sesión",
         )
-    user_id = read_session_user_id(session_token)
+    user_id = get_optional_session_user_id(session_token)
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
