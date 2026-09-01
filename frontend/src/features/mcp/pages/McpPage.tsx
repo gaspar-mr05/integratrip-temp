@@ -1,28 +1,23 @@
 import { McpCard } from '../components'
 import { useMcpConnectionStatuses } from '../hooks'
-import type { McpConnectionStatus } from '../types'
 
 type McpServerViewModel = {
   serverName: string
   serverApiName: string
-  status: McpConnectionStatus
 }
 
 const mcpServers: McpServerViewModel[] = [
   {
     serverName: 'Andes Air',
     serverApiName: 'andes-air',
-    status: 'disconnected',
   },
   {
     serverName: 'StayWell',
     serverApiName: 'staywell',
-    status: 'disconnected',
   },
   {
     serverName: 'Cielo Sur',
     serverApiName: 'cielo-sur',
-    status: 'disconnected',
   },
 ]
 
@@ -52,7 +47,7 @@ export function McpPage() {
             key={server.serverName}
             serverName={server.serverName}
             serverApiName={server.serverApiName}
-            status={statuses[server.serverApiName] ?? server.status}
+            status={statuses[server.serverApiName] ?? 'checking'}
           />
         ))}
       </div>

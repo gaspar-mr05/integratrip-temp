@@ -78,3 +78,19 @@ export function removeSessionCache(key: string): void {
     // La caché es opcional; no hay nada más que limpiar.
   }
 }
+
+export function removeSessionCacheByPrefix(prefix: string): void {
+  if (!canUseSessionStorage()) {
+    return
+  }
+
+  try {
+    const matchingKeys = Object.keys(window.sessionStorage).filter((key) =>
+      key.startsWith(prefix),
+    )
+
+    matchingKeys.forEach((key) => window.sessionStorage.removeItem(key))
+  } catch {
+    // La caché es opcional; no hay nada más que limpiar.
+  }
+}

@@ -1,6 +1,6 @@
-import { Button, ErrorMessage } from '../../../shared/ui'
+import { Button, ErrorMessage, Skeleton } from '../../../shared/ui'
 import { useMcpConnection, useMcpTools } from '../hooks'
-import type { McpConnectionStatus } from '../types'
+import type { McpConnectionDisplayStatus } from '../types'
 import { ToolsList } from './ToolsList'
 import { ToolsListSkeleton } from './ToolsListSkeleton'
 
@@ -8,7 +8,7 @@ type Props = {
   index: number
   serverName: string
   serverApiName: string
-  status: McpConnectionStatus
+  status: McpConnectionDisplayStatus
 }
 
 export const McpCard = ({ index, serverName, serverApiName, status }: Props) => {
@@ -16,15 +16,25 @@ export const McpCard = ({ index, serverName, serverApiName, status }: Props) => 
   const { error, fetchTools, isLoading, tools } = useMcpTools()
 
   const hasTools = tools.length > 0
+  const isChecking = status === 'checking'
 
   return (
     <article className="flex min-h-56 flex-col justify-between gap-6 border-t border-slate-300 py-5 transition-colors hover:border-slate-950">
       <div className="grid gap-4">
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs font-semibold tracking-[0.14em] text-slate-400">0{index}</span>
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status === 'connected' ? 'text-emerald-700' : 'text-slate-500'}`}>
-            <span className={`size-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-            {status === 'connected' ? 'Conectado' : 'Sin conectar'}
+          <span
+            aria-live="polite"
+            className={`inline-flex items-center gap-1.5 text-xs font-medium ${status === 'connected' ? 'text-emerald-700' : 'text-slate-500'}`}
+          >
+            <span
+              className={`size-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-600' : isChecking ? 'animate-pulse bg-blue-500' : 'bg-slate-400'}`}
+            />
+            {status === 'connected'
+              ? 'Conectado'
+              : isChecking
+                ? 'Comprobando…'
+                : 'Sin conectar'}
           </span>
         </div>
         <div>
@@ -51,8 +61,15 @@ export const McpCard = ({ index, serverName, serverApiName, status }: Props) => 
             <ErrorMessage message={error.message} />
           ) : null}
         </div>
+      ) : status === 'disconnected' ? (
+        <Button
+          className="w-full sm:w-fit"
+          onClick={() => connectMcpServer(serverApiName)}
+        >
+          Conectar
+        </Button>
       ) : (
-        <Button className="w-full sm:w-fit" onClick={() => connectMcpServer(serverApiName)}>Conectar</Button>
+        <Skeleton className="h-10 w-full sm:w-28" />
       )}
     </article>
   )

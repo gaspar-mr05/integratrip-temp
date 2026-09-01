@@ -43,6 +43,8 @@ export type CallServerToolResponse = {
 
 export type McpConnectionStatus = 'connected' | 'disconnected'
 
+export type McpConnectionDisplayStatus = McpConnectionStatus | 'checking'
+
 export type McpConnectionStatusResponse = {
   connected: boolean
   status: McpConnectionStatus

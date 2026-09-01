@@ -2,6 +2,7 @@ export type {
   CallServerToolResponse,
   JsonSchemaObject,
   JsonSchemaProperty,
+  McpConnectionDisplayStatus,
   McpConnectionStatus,
   McpConnectionStatusResponse,
   ListServerToolsResponse,

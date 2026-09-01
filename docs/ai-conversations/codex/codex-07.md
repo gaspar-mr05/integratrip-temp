@@ -2,586 +2,868 @@
 
 ## Prompt
 
-Para terminar, necesito que en el formulario de llamar las tools los textos de ejemplo si tengan algo, porque actualmente aparece genericamente texto de ejemplo. Necesito que se tenga una referencia para que el usuario sepa llamar a la tool
+[https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/docs#discovery](https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/docs#discovery). Necesito que leas la documentacion y confirmes que todo el flujo que hice está alineado con como está documentado.
 
 ## Respuesta
 
-Voy a usar las skills `react` y `clean-code` porque esto suena a ajuste puntual de formulario/frontend y conviene calzarlo con los patrones existentes antes de tocar nada. Primero ubico dónde se construye el formulario de llamada de tools y cómo hoy genera esos placeholders genéricos.
+Voy a revisar esto con foco de code review y backend: primero leo las instrucciones de esas skills, después contrasto la documentación pública con el flujo implementado en el repo.
 
 ## Respuesta
 
-Ya encontré una zona probable: `ToolForm`, `ToolField` y utilidades de schema. Voy a leer esa ruta completa para ver si el placeholder viene del schema MCP o de una función local de fallback.
+La documentación ya deja una línea base bastante concreta: discovery desde el `401`, PRM, metadata RFC 8414/OpenID, PKCE S256 obligatorio, `resource` como audiencia, y tres registros distintos (`pre`, `dcr`, `cimd`). Ahora voy a mapear eso contra el código existente, sin asumir que los nombres de módulos cuentan toda la historia.
 
 ## Respuesta
 
-La función local ya intenta usar `example`, `examples` y `default`, pero cuando el schema no trae nada cae a `Texto de ejemplo`. El cambio más limpio parece ser mejorar ese fallback usando nombre del campo, formato, enum/items/propiedades y restricciones para producir una referencia concreta.
+El árbol confirma que el flujo OAuth/MCP está repartido entre servicios backend, routers y hooks/API frontend. Voy a revisar esos puntos de contacto: estados OAuth, PKCE, discovery/registro por realm, callback/token y uso del Bearer contra MCP.
 
 ## Respuesta
 
-Veo que el helper no recibe el nombre del campo, así que no puede dar ejemplos específicos como `city: Santiago` o `query: clima en Santiago`; por eso termina en texto neutro. Voy a hacer un cambio acotado: pasar el nombre del campo al generador de ejemplos y mapear nombres comunes a valores útiles.
+Hasta ahora el patrón general calza: el backend genera state+PKCE, usa `resource`, intercambia por form-url-encoded y separa PRE/DCR/CIMD para secret. Hay una cosa que quiero mirar con más cuidado: si la app realmente descubre endpoints desde el `401`/metadata, o si depende de datos persistidos/configurados.
 
 ## Respuesta
 
-Antes de editar, el alcance queda así: tocar solo `toolSchema.ts` y `ToolField.tsx`. Mantengo la prioridad de `example/default` que venga del servidor MCP, y solo mejoro los ejemplos inventados cuando el schema no trae uno.
+El frontend actúa como lanzador del flujo, así que la alineación fina está en el backend. Voy a revisar también el login de la app, porque la documentación separa explícitamente “login app” de “conectar MCP”, y esa separación suele ser donde aparecen desfases sutiles.
 
 ## Respuesta
 
-Ya quedó el generador con ejemplos contextuales, pero todavía falta pasarle el `fieldName` desde el componente. Haré ese ajuste pequeño y después corro build/lint para pillar errores de TypeScript o estilo.
+La ruta de login usa el realm PRE con PKCE y `resource` = backend, que es coherente con “login app” según la doc si ese backend URL es el origin registrado/audiencia esperada. Voy a comprobar configuración y, en paralelo, mirar si hay tests o scripts de verificación para no quedarme solo en lectura estática.
 
 ## Respuesta
 
-Listo el cambio de código. Ahora reviso el diff y ejecuto las verificaciones del frontend para asegurar que no rompimos tipos ni lint.
+La herramienta web no me dejó abrir directamente algunos endpoints derivados, así que voy a usar `curl` desde el workspace para leer las metadata reales. Eso además me sirve para contrastar con lo que el cliente debería estar consumiendo en runtime.
 
 ## Respuesta
 
-Las verificaciones pasaron: lint y build del frontend están verdes. Voy a mirar el estado final del repo para asegurar que solo quedaron los archivos esperados.
+Las metadata vivas coinciden con la documentación: PRE y DCR son confidenciales con secret, DCR publica `registration_endpoint`, CIMD publica soporte de client metadata document y no requiere secret. Siguiente paso: revisar la tabla/configuración local de servidores MCP, porque ahí se decide si el flujo está “descubierto” o precargado.
 
 ## Respuesta
 
-Un detalle útil: los strings ya quedan mejores, pero arrays/objetos sin `items` o `properties` aún podrían mostrar `[]` o `{}`, que tampoco guía mucho. Voy a ajustar ese fallback para que también entregue una muestra rellena.
+Ese intento falló por `PYTHONPATH`, no por Supabase. Lo repito entrando al contexto del backend para ver solo metadatos no sensibles.
 
 ## Respuesta
 
-Ese último ajuste hace que incluso schemas pobres muestren algo copiable en el hint, por ejemplo `["clima en Santiago"]` o `{ "valor": "..." }`. Vuelvo a correr las verificaciones después del parche.
+La consulta a Supabase quedó esperando respuesta; la dejo terminar antes de sacar conclusiones, porque estos detalles de configuración son los que pueden convertir un flujo correcto en uno frágil en producción.
 
 ## Respuesta
 
-Todo compila. Haré una pasada mínima de legibilidad en esas expresiones largas y normalización de acentos, así los nombres de campos en español también matchean mejor.
+Encontré dos desfases fuertes y algunos detalles menores. Estoy sacando líneas exactas para que la respuesta no quede en “me tinca”: quiero amarrarlo a archivos y a puntos concretos de la doc.
 
 ## Respuesta
 
-La limpieza quedó aplicada sin cambiar el comportamiento previsto. Una última ronda de lint/build y cierro con el resumen.
+Con las líneas ya revisadas, el veredicto no es un “sí completo”: la conexión MCP principal está cerca, pero login y discovery tienen divergencias claras frente a la documentación. Haré una comprobación rápida de build/lint para separar problemas documentales de errores básicos del proyecto.
 
 ## Respuesta
 
-Listo. Ajusté los ejemplos del formulario de tools para que dejen de caer en `Texto de ejemplo` y ahora usen referencias más útiles según el nombre/formato del campo.
+Build frontend y compilación Python pasaron. Me falta solo `lint` del frontend; después te dejo una revisión ordenada con “alineado / no alineado / riesgo”.
+
+## Respuesta
+
+No puedo confirmar que **todo** esté alineado. El flujo MCP está bastante cerca, pero encontré estos descalces importantes contra la [documentación del AS](https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/docs#discovery):
+
+**Findings**
+1. **Login de la app usa `scope=openid` por defecto**
+   En [authorization_code.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/authorization_code.py:23) el default es `scope="openid"`, y [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py:40) no lo sobreescribe. La doc muestra `scope=mcp:tools` también para el login de la app. Impacto: el authorize puede fallar o quedar fuera del contrato esperado. Sugerencia: pasar explícitamente `scope="mcp:tools"` en `start_login_flow`.
+
+2. **`resource` del login no coincide con lo documentado**
+   En [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py:46) y [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py:71) se usa `settings.BACKEND_URL`. La doc dice que para login debe ser el **origin de tu app**, no un MCP, y debe coincidir con el origin del `redirect_uri` registrado. En tu `.env` production, el `redirect_uri` se arma desde `PUBLIC_API_URL=https://integratrip-temp.vercel.app/api`, pero `BACKEND_URL` apunta a Render. Impacto: `aud` del JWT queda distinto a lo esperado y puede no saltarse consentimiento. Sugerencia: usar un setting claro tipo `LOGIN_RESOURCE_ORIGIN=https://integratrip-temp.vercel.app`.
+
+3. **No hay discovery runtime desde `401`/PRM**
+   La doc exige partir desde `WWW-Authenticate`, leer Protected Resource Metadata y luego metadata del AS. El código usa endpoints precargados en Supabase desde [mcp_connection_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/mcp_connection_service.py:130). Verifiqué que los valores actuales de Supabase calzan con las metadata vivas, pero el flujo implementado no “descubre” como está documentado. Impacto: puede funcionar hoy, pero no está plenamente alineado si evalúan discovery real. Sugerencia: agregar un servicio de discovery que obtenga PRM y metadata antes de conectar o al registrar servidores.
+
+4. **DCR registra sin `refresh_token`**
+   En [dcr.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/dcr.py:18) mandas `grant_types: ["authorization_code"]`; la doc para DCR muestra `["authorization_code", "refresh_token"]`. Como después implementas refresh, esto puede dejar DCR sin refresh token o hacer fallar refresh. Sugerencia: incluir `"refresh_token"` y validar que DCR devuelva `client_secret`.
+
+**Lo Que Sí Está Alineado**
+El flujo MCP principal usa PKCE S256, `state`, `response_type=code`, `resource` como URL del MCP, `scope=mcp:tools`, token exchange form-url-encoded, secret para PRE/DCR y sin secret para CIMD. También usa Bearer header al llamar MCP. La metadata CIMD expuesta en [oauth_client_metadata.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/routers/oauth_client_metadata.py:13) calza con el esquema documentado.
+
+**Verificación**
+No modifiqué archivos. Revisé la doc pública, metadata vivas de PRE/DCR/CIMD con `curl`, configuración Supabase de `mcp_servers` con secretos enmascarados, y corrí `npm run build`, `npm run lint`, y `python -m compileall backend/app`; todo eso pasó.
+
+## Prompt
+
+Corrige los desfases
+
+## Respuesta
+
+Voy a aplicar las correcciones en el backend manteniendo el cambio chico y explícito: login con `mcp:tools`, recurso derivado del origin real del callback, DCR con refresh, y discovery runtime para endpoints MCP. Uso las skills `backend`, `clean-code` y `testing` porque esto toca flujo OAuth y verificación.
+
+## Respuesta
+
+Antes de editar, voy a comprobar cómo responde cada MCP sin token para implementar discovery desde el `WWW-Authenticate` real y no inventar una URL `.well-known` por convención.
+
+## Respuesta
+
+Voy a hacer una pieza nueva y pequeña para discovery OAuth: pedir el MCP sin token, extraer `resource_metadata` del header, leer PRM y luego probar las tres URLs de metadata AS en el orden de la doc. Después el servicio de conexión usará esos endpoints descubiertos en authorize/token/refresh.
+
+## Respuesta
+
+Voy a editar ahora cuatro puntos: nuevo módulo de discovery, uso de metadata descubierta en conexión/refresh, login resource/scope, y registro DCR con refresh. No tocaré frontend ni esquema de BD.
+
+## Respuesta
+
+Primer parche aplicado. Estoy revisando el diff con ojo de flujo real; ya vi un detalle de continuidad para DCR recién registrado, donde no conviene perder la metadata recién descubierta al refrescar la fila de Supabase.
+
+## Respuesta
+
+Voy a ajustar ese detalle de DCR para que, si Supabase devuelve la fila actualizada, el flujo conserve endpoints/resource descubiertos en esta misma ejecución.
+
+## Respuesta
+
+También voy a cambiar el default del helper de authorize a `mcp:tools`; aunque el login ya lo pasa explícito, así el helper no vuelve a crear el mismo desfase por omisión.
+
+## Respuesta
+
+Ahora voy a verificar dos capas: que Python compile y que el discovery nuevo lea las metadata vivas de los tres MCPs. Después corro frontend build/lint para asegurar que nada colateral quedó roto.
+
+## Respuesta
+
+Discovery pasó contra PRE/DCR/CIMD reales y la compilación Python está limpia. Corro ahora los checks del frontend aunque el cambio fue backend, para dejar el árbol completo en buen estado.
+
+## Respuesta
+
+Los checks pasaron. Voy a hacer una revisión final del diff para asegurar que no se coló algo fuera de alcance ni mensajes sensibles en logs.
+
+## Respuesta
+
+El diff de Git no muestra archivos no trackeados por defecto; voy a revisar explícitamente el módulo nuevo y luego corro una prueba de flujo unitario sencilla para confirmar que las URLs generadas contienen los parámetros esperados.
+
+## Respuesta
+
+El módulo nuevo compila y funciona, pero voy a pulir unas líneas largas y reforzar validación de metadata opcional antes de cerrar; pequeño aseo para que no quede una piedra en el zapato.
+
+## Respuesta
+
+Pulido hecho. Repito las verificaciones principales después del ajuste final.
+
+## Respuesta
+
+Todo lo ejecutable pasó. Hago un último `diff --check` y status para dejar claro qué cambió.
+
+## Respuesta
+
+Listo, corregí los desfases contra la documentación del AS: https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/docs#discovery
 
 Archivos cambiados:
-- [ToolField.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/components/ToolField.tsx)
-- [toolSchema.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/utils/toolSchema.ts)
+- [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py): el login ahora usa `scope=mcp:tools` y calcula `resource` desde el origin real del `redirect_uri`, en vez de usar `BACKEND_URL`.
+- [authorization_code.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/authorization_code.py): el default del helper de authorize ahora es `mcp:tools`.
+- [dcr.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/dcr.py): DCR ahora registra `grant_types=["authorization_code", "refresh_token"]` y valida que el AS devuelva `client_secret`.
+- [discovery.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/discovery.py): agregué discovery real desde `WWW-Authenticate` → PRM → metadata del AS en el orden documentado.
+- [mcp_connection_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/mcp_connection_service.py): conectar, callback y refresh ahora usan endpoints/resource/scope descubiertos, manteniendo separados PRE/DCR/CIMD.
 
-Comportamiento cambiado:
-- Se siguen respetando `example`, `examples` y `default` si vienen desde el schema MCP.
-- Si no vienen, ahora se generan ejemplos contextuales: `query` → `clima en Santiago`, `url` → `https://ejemplo.com/recurso`, `location` → `Santiago, Chile`, `ticker` → `AAPL`, etc.
-- Arrays y objetos sin estructura también muestran algo copiable en vez de `[]` o `{}` vacío.
-
-Verificado con:
-- `npm run lint`
+Verifiqué:
+- `python -m compileall backend/app`
+- discovery real contra PRE, DCR y CIMD
 - `npm run build`
+- `npm run lint`
 - `git diff --check`
 
-No quedaron issues pendientes.
+Queda solo una cosa que no probé end-to-end: el flujo OAuth completo en navegador con login/consent, porque requiere interacción real con el AS.
 
 ## Prompt
 
-no pero los ejemplos contextuales no deben ser a la tincada, debem ser verificables con el formato de la tool. Obvio solo si es posible saber el formato de cada argumento
+dame paso a paso para probar todo desde 0 y asegurarme de que funcione correctamente
 
 ## Respuesta
 
-Tienes razón: mi cambio anterior se pasó de creativo. Voy a corregirlo usando `react` y `clean-code`: quitar los ejemplos inferidos por nombre del campo y dejar solo ejemplos derivados del schema, o ninguno cuando el schema no alcanza para saber un valor válido.
+Sí. Te dejo una ruta de prueba desde cero, pensada para detectar problemas de configuración, discovery, login, conexión MCP y ejecución de tools.
 
-## Respuesta
+**1. Revisa `.env`**
+En `backend/.env.local` para local deberías tener algo así:
 
-Voy a dejar el generador con esta regla: `example/examples/default` del MCP primero; si no existe, solo producir valores por `type`, `format`, `enum`, `const`, o estructura declarada (`items`/`properties`). Si un string no tiene formato ni ejemplo explícito, no mostramos ejemplo inventado.
+```env
+AS_AUTHORIZATION_ENDPOINT=https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/realms/pre/authorize
+AS_TOKEN_ENDPOINT=https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/realms/pre/token
 
-## Respuesta
-
-También voy a mejorar el texto de ayuda para `pattern` cuando exista: no es un ejemplo, pero sí es una referencia verificable desde el schema. Así evitamos inventar valores para regex que no podemos generar de forma confiable.
-
-## Respuesta
-
-Ahora reemplazo el bloque heurístico por uno más estricto: valores explícitos del schema, formatos JSON Schema conocidos y tipos numéricos con mínimos/máximos.
-
-## Respuesta
-
-Ya saqué la inferencia por nombre de campo. Ajusto ahora el componente para que vuelva a pedir ejemplos solo desde el schema del argumento, sin pasarle contexto extra.
-
-## Respuesta
-
-Falta una referencia para patrones: si el schema trae `pattern`, la UI debe mostrarlo en la expectativa en vez de decir solo “Ingresa texto”. Haré ese cambio pequeño.
-
-## Respuesta
-
-Voy a correr TypeScript/lint ahora; en este punto lo más probable a pillar son detalles de tipos por el helper de objetos anidados.
-
-## Respuesta
-
-Las verificaciones pasan, pero hay dos mejoras obvias antes de cerrar: usar `enum` como fuente verificable para ejemplos anidados y ajustar números con `maximum` bajo cero o menor que el ejemplo base. Voy con eso.
-
-## Respuesta
-
-Encontré un borde en enteros: si `minimum` y `maximum` dejan el rango sin ningún entero posible, no debe fabricarse uno. Lo corrijo de inmediato.
-
-## Respuesta
-
-También voy a alinear los mensajes de expectativa con los formatos extra que ahora sí pueden generar ejemplo (`uuid`, `hostname`, IP, `time`).
-
-## Respuesta
-
-Ahora sí, corro la validación final y reviso diff/estado para confirmar que quedó solo el ajuste esperado.
-
-## Respuesta
-
-La build y el lint están verdes. Hago una última lectura del diff para asegurar que no quedó ninguna heurística por nombre de campo.
-
-## Respuesta
-
-Una última sutileza: `null` puede ser un valor válido si el schema lo permite, así que no conviene usarlo como señal interna de “no pude generar ejemplo”. Cambio esa señal a `undefined` para no confundir un ejemplo explícito `null` con ausencia de ejemplo.
-
-## Respuesta
-
-Ese ajuste ya cuida los casos donde `null` venga explícitamente del schema. Corro la ronda final de verificación.
-
-## Respuesta
-
-Tienes toda la razón. Corregí el cambio para que los ejemplos no salgan “a la tincada”.
-
-Ahora los ejemplos solo se muestran cuando salen de algo verificable del schema de la tool:
-
-- `example`, `examples`, `default` o `const` declarados por el MCP.
-- `enum`, usando un valor permitido.
-- `format` conocido: `date`, `date-time`, `email`, `url/uri`, `uuid`, `hostname`, `ipv4`, `ipv6`, `time`.
-- Tipos numéricos, respetando `minimum` y `maximum`.
-- Objetos/arrays solo si su estructura interna permite construir un ejemplo válido.
-
-Si el argumento es un `string` genérico sin `format`, sin `example`, sin `default`, etc., ya no inventa texto. Además, si hay `pattern`, ahora se muestra como referencia esperada.
-
-Archivos cambiados:
-- [toolSchema.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/utils/toolSchema.ts)
-- [mcp.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/types/mcp.ts)
-
-Verificado con:
-- `npm run lint`
-- `npm run build`
-- `git diff --check`
-
-## Prompt
-
-si no hay resultados, que aparezca abajo y que no aparezca simplemente error
-
-## Respuesta
-
-Voy a ajustar esto en el flujo de ejecución/resultados de tools, usando `react` y `clean-code` para mantenerlo acotado al patrón actual. Primero reviso cómo se distingue hoy entre error, resultado vacío y resultado normal.
-
-## Respuesta
-
-El hook solo separa “request falló” de “request respondió”. Voy a mirar el normalizador de resultados y el cliente HTTP/backend, porque “sin resultados” puede estar llegando como `content: []`, `null`, `{}` o incluso como respuesta HTTP marcada erróneamente.
-
-## Respuesta
-
-El backend devuelve `{"output": ...}` cuando la tool responde; el “abajo” ya existe en la página para resultados. Haré que el renderizador trate salidas vacías como estado informativo de resultado, no como un bloque de error ni JSON raro.
-
-## Respuesta
-
-Hay dos posibles casos: respuesta exitosa vacía, o respuesta MCP con `isError` dentro del output. Voy a revisar el servicio MCP para no confundir un error real de protocolo con una ejecución válida que simplemente no encontró datos.
-
-## Respuesta
-
-El cambio será en frontend: detectar salidas vacías y renderizar un estado “No hay resultados” dentro de la sección `Resultado`. No voy a convertir errores HTTP reales en éxito, porque ahí sí habría riesgo de ocultar problemas de conexión o de la tool.
-
-## Respuesta
-
-Voy a hacer que el normalizador de resultados pueda devolver cero bloques cuando no hay nada mostrable, y que el componente pinte un mensaje neutral. Eso mantiene la lógica de “qué cuenta como vacío” fuera del JSX.
-
-## Respuesta
-
-Ahora agrego el estado visual abajo del formulario, dentro del bloque de resultado, con estilo informativo en vez de `ErrorMessage`.
-
-## Respuesta
-
-Ya quedó el estado vacío renderizado como resultado. Corro lint/build para confirmar que el cambio no dejó problemas.
-
-## Respuesta
-
-Las verificaciones pasaron. Reviso el diff final para separar claramente este ajuste de los cambios previos de ejemplos.
-
-## Respuesta
-
-Noté una mejora de seguridad visual: si la tool entrega contenido no textual, no conviene esconderlo como “sin resultados”. Ajusto esa rama para marcar vacío solo cuando el `content` realmente viene vacío o con textos vacíos.
-
-## Respuesta
-
-Con eso ya no se pierden outputs raros pero presentes. Vuelvo a validar.
-
-## Respuesta
-
-Listo. Ahora cuando la tool responde correctamente pero no trae nada mostrable, el resultado aparece abajo en la sección `Resultado` con el mensaje:
-
-`No hay resultados para mostrar.`
-
-Ya no se muestra como error rojo para esos casos vacíos (`null`, `undefined`, string vacío, array vacío, objeto vacío, `content: []` o contenido textual vacío).
-
-Archivos tocados para este ajuste:
-- [ToolExecutionResult.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/components/ToolExecutionResult.tsx)
-- [toolResult.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/utils/toolResult.ts)
-
-Verificado con:
-- `npm run lint`
-- `npm run build`
-- `git diff --check`
-
-## Prompt
-
-por que cuando estoy en local, el callback me redirige al frontend de produccion?
-
-## Respuesta
-
-Voy a mirarlo como diagnóstico de backend/configuración, usando `debugging` y `backend`. La pista inicial es que el callback usa una URL de frontend desde settings, así que voy a revisar config y variables/env locales antes de sacar conclusiones.
-
-## Respuesta
-
-Un detalle importante: `env_file=".env"` se resuelve relativo al directorio desde donde levantas Uvicorn, no necesariamente relativo a `backend/`. Voy a comprobar qué `.env` existe y qué URLs está cargando, sin imprimir secretos.
-
-## Respuesta
-
-Encontré algo bastante claro: `backend/.env` está marcado como producción, mientras que `backend/.env.local` está local. Voy a confirmar también `FRONTEND_URL`, porque esa variable es exactamente la que usa el callback para decidir a dónde mandarte.
-
-## Respuesta
-
-Porque el backend está leyendo `backend/.env`, no `backend/.env.local`.
-
-En tu código, ambos callbacks redirigen usando:
-
-- `backend/app/routers/auth.py`: `RedirectResponse(get_settings().FRONTEND_URL)`
-- `backend/app/routers/mcp.py`: `RedirectResponse(get_settings().FRONTEND_URL)`
-
-Y `get_settings()` carga esto desde [config.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/config.py:8):
-
-```py
-SettingsConfigDict(env_file=".env", extra="ignore")
-```
-
-Cuando corrí la configuración desde `backend`, lo que efectivamente carga es:
-
-```txt
-ENVIRONMENT=production
-PUBLIC_API_URL=https://integratrip-temp.vercel.app/api
-BACKEND_URL=https://integratrip-temp.onrender.com
-FRONTEND_URL=https://integratrip-temp.vercel.app
-```
-
-O sea: aunque estás corriendo local, tu `backend/.env` tiene valores de producción. Tu `backend/.env.local` sí tiene:
-
-```txt
-FRONTEND_URL=http://localhost:5173
 PUBLIC_API_URL=http://localhost:8000
-ENVIRONMENT=local
+FRONTEND_URL=http://localhost:5173
+BACKEND_URL=http://localhost:8000
 ```
 
-pero ahora mismo no se está usando.
+Asegúrate de que el cliente PRE de login tenga registrado:
 
-Para correr local rápido, tienes dos opciones:
+```txt
+http://localhost:8000/auth/callback
+```
+
+Y los clientes MCP/redirects tengan:
+
+```txt
+http://localhost:8000/mcp/andes-air/callback
+http://localhost:8000/mcp/staywell/callback
+http://localhost:8000/mcp/cielo-sur/callback
+```
+
+**2. Instala dependencias**
+Backend:
 
 ```bash
 cd backend
-cp .env.local .env
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Frontend:
+
+```bash
+cd ../frontend
+npm install
+```
+
+**3. Corre checks antes de partir**
+Desde la raíz del repo:
+
+```bash
+python -m compileall backend/app
+cd frontend
+npm run build
+npm run lint
+```
+
+Todo debería pasar.
+
+**4. Verifica discovery contra los tres MCPs**
+Desde la raíz:
+
+```bash
+PYTHONPATH=backend python - <<'PY'
+from app.services.oauth.discovery import discover_mcp_oauth_metadata
+
+servers = {
+    "pre": "https://tarea1-mcp-pre-z2fqxmm2ja-uc.a.run.app/mcp",
+    "dcr": "https://tarea1-mcp-dcr-z2fqxmm2ja-uc.a.run.app/mcp",
+    "cimd": "https://tarea1-mcp-cimd-z2fqxmm2ja-uc.a.run.app/mcp",
+}
+
+for name, url in servers.items():
+    metadata = discover_mcp_oauth_metadata(url)
+    print(name)
+    print(" issuer:", metadata["issuer"])
+    print(" authorize:", metadata["authorization_endpoint"])
+    print(" token:", metadata["token_endpoint"])
+    print(" resource:", metadata["resource"])
+    print(" scope:", metadata["scope"])
+    print()
+PY
+```
+
+Deberías ver:
+- `pre` con `/realms/pre`
+- `dcr` con `/realms/dcr` y `registration_endpoint`
+- `cimd` con `/realms/cimd` y `client_id_metadata_document_supported=True`
+- `scope: mcp:tools`
+- `resource` igual a la URL `/mcp`
+
+**5. Levanta backend**
+Desde `backend`:
+
+```bash
+source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-o cambiar `config.py` para cargar `.env.local` además de `.env`, dejando que `.env.local` sobrescriba en desarrollo. Además ojo con `PUBLIC_API_URL`: ahora apunta al frontend de Vercel con `/api`, pero para OAuth local debería ser `http://localhost:8000`, porque de ahí salen los `redirect_uri` de login y MCP.
-
-## Prompt
-
-que en local, funcione .env.local punto
-
-## Respuesta
-
-Sí, lo dejo explícito en código: en local debe tomar `backend/.env.local` sin depender de desde dónde levantes Uvicorn. Voy a cambiar la config, sin tocar tus archivos `.env` ni secretos.
-
-## Respuesta
-
-El problema estaba en `env_file=".env"` relativo al cwd. Voy a amarrarlo a la carpeta `backend` y poner `.env.local` como override local.
-
-## Respuesta
-
-Ahora verifico desde `backend/` y desde la raíz del repo, porque esa era la fragilidad: levantar el server desde un lugar distinto no debería cambiar qué archivo carga.
-
-## Respuesta
-
-La verificación muestra que ahora carga `FRONTEND_URL=http://localhost:5173` y `ENVIRONMENT=local`. Reviso el diff final y cierro.
-
-## Respuesta
-
-Listo. Cambié [backend/app/config.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/config.py:1) para que cargue los env desde la carpeta `backend` y que `.env.local` sobrescriba a `.env`.
-
-Ahora carga:
-
-```py
-env_file=(BACKEND_DIR / ".env", BACKEND_DIR / ".env.local")
-```
-
-Verifiqué desde `backend/` y desde la raíz del repo, y en ambos casos queda:
-
-```txt
-ENVIRONMENT=local
-PUBLIC_API_URL=http://localhost:8000
-BACKEND_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
-```
-
-También corrí:
+Prueba health:
 
 ```bash
-python -m compileall app
+curl http://localhost:8000/health
 ```
 
-Con esto, en local el callback debería redirigir a `http://localhost:5173`, punto.
+Debe responder:
 
-## Prompt
+```json
+{"status":"ok"}
+```
 
-pero sigue pasando el problema de los imput edl form. No ponen ejemplos. Por ejemplo en city es claro que debe seguir el formato SCL, IATA. En ningun lado el mcp indica eso? para saber que formato deben tener los imnputs? porque uno no es adivino y por tanto practicamente todos no sabran que poner
+**6. Levanta frontend**
+En otra terminal:
 
-## Respuesta
+```bash
+cd frontend
+npm run dev
+```
 
-Voy a revisar esto desde la fuente real, no desde nombres de campos: qué schema/metadata está devolviendo el MCP para esa tool y si el frontend está mostrando toda esa información. Uso `debugging`, `backend` y `react` porque el problema cruza la respuesta MCP, el backend y el formulario.
-
-## Respuesta
-
-La búsqueda en código no tiene hardcode de `IATA`; así que lo correcto es mirar lo que devuelve `list_tools()` del MCP real. Voy a revisar el script existente y, si no imprime schema completo, lo adapto solo vía comando para inspección sin editar.
-
-## Respuesta
-
-Para responder “¿el MCP lo indica o no?”, necesito ver el `inputSchema` real de `andes-air`. Voy a buscar un usuario con conexión activa en Supabase sin imprimir tokens ni secretos, solo ids/servidores mínimos para poder llamar `list_tools`.
-
-## Respuesta
-
-Hay una conexión activa para `andes-air`. Voy a pedirle al MCP la lista de tools y filtrar los schemas que tengan campos tipo `city`, `origin`, `destination` o similares.
-
-## Respuesta
-
-El MCP sí lo está indicando, pero no como `example` formal: lo pone dentro de `description`. Por ejemplo `origin.description = "IATA code, e.g. SCL"`. Nuestro frontend estaba siendo demasiado estricto y no extraía ese ejemplo desde la descripción, aunque la mostraba como texto de ayuda.
-
-## Prompt
-
-ey peri en el AS aparecen un logs de mi llamada a los tools y aparece gaspar.magna\@uc.cl
-
-Tools: list\_cities (5),  get\_flight (5), get\_hotel (5), get\_current\_weather (5), list\_bookings  (4), get\_forecast (3), list\_airports (3), search\_flights (1), whoami  (1), search\_hotels (1)
-
-| CuandoServerToolOKDetalle |         |                |      |                                                                                                                                                                                                          |
-| ------------------------- | ------- | -------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-29 22:45:08       | Weather | `get_forecast` | fail | Unknown city 'Santiago'. Use list\_airports / IATA: SCL, LIM, BOG, MIA, CUN, RIO, BUE, MAD, BCN, PAR, NYC                                                                                                |
-| 2026-08-29 21:55:01       | Weather | `list_cities`  | ok   | {"cities":[{"iata":"SCL","city":"Santiago","country":"Chile","climate":"mediterranean"},{"iata":"LIM","city":"Lima","country":"Peru","climate":"arid"},{"iata":"BOG","city":"Bogota","country":"Colombia |
-| 2026-08-29 22:44:27       | Flights | `get_flight`   | fail | Unknown flightId. Search first and use a returned flightId.. Aaprece como el detalle del error... No hay forma de que eso igual aparezca en la pagina?                                                   |
-
-## Respuesta
-
-Sí, eso se puede y de hecho es lo correcto: si el MCP devuelve un error de ejecución de la tool con detalle útil, la página debería mostrar ese detalle y no solo “No se pudo ejecutar”. Voy a revisar cómo el SDK está representando ese fallo para preservarlo desde backend hasta frontend.
-
-## Respuesta
-
-Para no tapar el detalle útil, necesito saber si `session.call_tool()` lanza una excepción o devuelve un `CallToolResult` con `isError`. Voy a inspeccionar el SDK instalado y luego hago el cambio más chico.
-
-## Respuesta
-
-El SDK confirma algo clave: `call_tool()` devuelve `CallToolResult` incluso cuando `isError=true`; no debería lanzarlo como error HTTP genérico. Voy a reproducir una llamada inválida con `Santiago` para ver el payload exacto que podemos renderizar.
-
-## Respuesta
-
-Reproduje el caso: el detalle existe, pero el backend lo está envolviendo como `McpProtocolError` genérico. La excepción real viene como `MCPError: Unknown city 'Santiago'...`, anidada dentro de un `ExceptionGroup` del SDK. Voy a extraer esa excepción específica y devolver su mensaje al frontend.
-
-## Respuesta
-
-Voy a tratar esos `MCPError` como errores esperados de ejecución de la tool, no como fallas de protocolo/conexión. Así el backend responde con `detail` útil y el frontend ya lo puede mostrar con el mensaje real.
-
-## Respuesta
-
-Ahora conecto esa excepción nueva en el router para que salga como `400` con el `detail` del AS, en vez de `502` con mensaje genérico.
-
-## Respuesta
-
-Voy a verificar reproduciendo las mismas llamadas inválidas. Espero que ahora el servicio levante `McpToolExecutionError` con el mensaje exacto: ciudad desconocida/IATA y flightId desconocido.
-
-## Respuesta
-
-Pillé un detalle en el diff: el `except` quedó en el endpoint de listar tools, no en el de llamar tools. Lo muevo al lugar correcto antes de cerrar; buen momento para que el diff haga de freno de mano.
-
-## Respuesta
-
-Ahora sí verifico el endpoint HTTP completo con `TestClient`, para asegurar que el frontend recibirá `detail` con el mensaje del AS.
-
-## Respuesta
-
-Además, sobre los inputs: sí, el MCP lo indica en algunos casos, pero lo hace en `description`, no en `example`. Ejemplos reales que vi: `IATA code, e.g. SCL`, `IATA code, e.g. CUN`, `YYYY-MM-DD`, `IATA city code`. Voy a hacer que el formulario use esas descripciones como fuente explícita de ejemplo/formato.
-
-## Respuesta
-
-Este cambio no inventa por nombre del campo. Solo usa texto explícito del schema: frases como `e.g. SCL`, `YYYY-MM-DD` o `IATA city code`. Si no aparece una pista así, sigue sin mostrar ejemplo.
-
-## Respuesta
-
-Ya agregué extracción desde `description`: `e.g. SCL` se vuelve ejemplo `SCL`, `YYYY-MM-DD` se vuelve `2026-01-31`, e `IATA city code` se vuelve `SCL` como muestra de formato. Ahora corro frontend y backend.
-
-## Respuesta
-
-Las verificaciones pasaron. Hago una prueba HTTP rápida otra vez para confirmar que el detalle del AS cruza hasta el JSON que recibirá el frontend.
-
-## Respuesta
-
-Sí: el MCP sí lo estaba indicando, pero en `description`, no en `example`.
-
-Por ejemplo, `andes-air/search_flights` devuelve:
+Abre:
 
 ```txt
-origin: "IATA code, e.g. SCL"
-destination: "IATA code, e.g. CUN"
-date: "YYYY-MM-DD"
+http://localhost:5173
 ```
 
-Entonces ajusté el frontend para usar esas pistas explícitas del schema:
+**7. Prueba login de la app**
+En el navegador:
 
-- Extrae ejemplos desde `e.g. SCL`, `e.g. CUN`, etc.
-- Si la descripción dice `YYYY-MM-DD`, muestra `2026-01-31`.
-- Si la descripción dice `IATA`, muestra `SCL` como ejemplo de formato.
-- Sigue sin inventar ejemplos desde el nombre del campo cuando el MCP no entrega ninguna pista.
+1. Entra a `http://localhost:5173`.
+2. Haz login.
+3. Debería redirigirte al AS.
+4. Completa email UC/número alumno.
+5. Debe volver a `http://localhost:5173`.
+6. Verifica `/auth/me`:
 
-También arreglé lo del error del AS: ahora si el MCP responde algo como:
+```bash
+curl -i --cookie "session_token=..." http://localhost:8000/auth/me
+```
+
+Más simple: si la UI ya te muestra la sección protegida, el login quedó bien.
+
+**8. Prueba conexión MCP PRE**
+En la UI:
+
+1. Ve a “Servidores MCP”.
+2. Conecta `Andes Air`.
+3. Debe abrir authorize del realm `pre`.
+4. Acepta consentimiento.
+5. Debe volver al frontend.
+6. Entra a sus tools y lista/ejecuta una.
+
+Si falla, mira logs del backend. Errores típicos:
+- `redirect_uri not registered`: falta registrar callback exacto.
+- `invalid_client`: `client_id` o `client_secret` PRE malo.
+- `invalid_target`: `resource` no coincide con authorize/token.
+
+**9. Prueba conexión MCP DCR**
+En la UI:
+
+1. Conecta `StayWell`.
+2. Si no había `client_id`, el backend debe registrar dinámicamente.
+3. Debe abrir authorize del realm `dcr`.
+4. Acepta consentimiento.
+5. Lista/ejecuta tools.
+
+Para asegurarte de que DCR registró con refresh, revisa en Supabase la fila `mcp_servers` de `staywell`: debe tener `client_id` y `client_secret_enc`.
+
+**10. Prueba conexión MCP CIMD**
+Antes, confirma que el metadata document exista:
+
+```bash
+curl http://localhost:8000/.well-known/oauth-client-metadata.json
+```
+
+Debe devolver JSON con:
+
+```json
+{
+  "client_id": "http://localhost:8000/.well-known/oauth-client-metadata.json",
+  "token_endpoint_auth_method": "none"
+}
+```
+
+Luego en la UI:
+
+1. Conecta `Cielo Sur`.
+2. Debe abrir authorize del realm `cimd`.
+3. No debe usar `client_secret`.
+4. Acepta consentimiento.
+5. Lista/ejecuta tools.
+
+**11. Prueba refresh**
+La forma más práctica:
+
+1. Conecta un MCP.
+2. En Supabase, en `mcp_connections`, cambia `expires_at` de esa conexión a una fecha pasada.
+3. Vuelve a listar tools desde la UI.
+4. El backend debería refrescar el token automáticamente y actualizar `expires_at`.
+
+Esto prueba `refresh_token` y que el `resource` descubierto se usa también al refrescar.
+
+**12. Prueba producción**
+Para producción, repite lo mismo usando:
 
 ```txt
-Unknown city 'Santiago'. Use list_airports / IATA: SCL, LIM...
+https://integratrip-temp.vercel.app
 ```
 
-el backend devuelve ese mensaje real al frontend en `detail`, en vez de esconderlo bajo `Error llamando a la tool...`.
+Confirma que en el AS estén registrados exactamente estos callbacks:
 
-Archivos relevantes:
-- [toolSchema.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/utils/toolSchema.ts)
-- [mcp_tools_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/mcp_tools_service.py)
-- [mcp.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/routers/mcp.py)
+```txt
+https://integratrip-temp.vercel.app/api/auth/callback
+https://integratrip-temp.vercel.app/api/mcp/andes-air/callback
+https://integratrip-temp.vercel.app/api/mcp/staywell/callback
+https://integratrip-temp.vercel.app/api/mcp/cielo-sur/callback
+```
 
-Verificado con:
-- `npm run lint`
-- `npm run build`
-- `python -m compileall app`
-- prueba HTTP local: ahora devuelve `400` con `detail: "Unknown city 'Santiago'. Use list_airports / IATA: ..."`
+La parte más importante: el callback debe coincidir carácter por carácter con lo que arma `PUBLIC_API_URL`.
 
 ## Prompt
 
-chequeo final del enunciado para comprobar que esté todo listo
+no pero me referia a probar en produccion
 
 ## Respuesta
 
-Voy a hacerlo como revisión final contra el enunciado, usando `code-review`. Me voy a enfocar en requisitos, riesgos funcionales y verificaciones reales; no voy a generar ni mejorar contenido del documento de arquitectura por la restricción del proyecto.
+Perfecto, para probar **producción desde 0** usa solo URLs productivas.
+
+**1. Verifica variables reales**
+Backend en Render debería tener:
+
+```env
+PUBLIC_API_URL=https://integratrip-temp.vercel.app/api
+FRONTEND_URL=https://integratrip-temp.vercel.app
+BACKEND_URL=https://integratrip-temp.onrender.com
+
+AS_AUTHORIZATION_ENDPOINT=https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/realms/pre/authorize
+AS_TOKEN_ENDPOINT=https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/realms/pre/token
+```
+
+Frontend en Vercel:
+
+```env
+VITE_API_BASE_URL=/api
+```
+
+**2. Revisa callbacks registrados en el AS**
+En la consola del AS/pre-registro, deben estar exactamente:
+
+```txt
+https://integratrip-temp.vercel.app/api/auth/callback
+https://integratrip-temp.vercel.app/api/mcp/andes-air/callback
+https://integratrip-temp.vercel.app/api/mcp/staywell/callback
+https://integratrip-temp.vercel.app/api/mcp/cielo-sur/callback
+```
+
+Ojo: tienen que ir con `/api`, porque Vercel reescribe `/api/*` hacia Render.
+
+**3. Verifica health productivo**
+```bash
+curl -i https://integratrip-temp.vercel.app/api/health
+```
+
+Debe responder `200` con:
+
+```json
+{"status":"ok"}
+```
+
+**4. Verifica metadata CIMD productiva**
+```bash
+curl -i https://integratrip-temp.vercel.app/api/.well-known/oauth-client-metadata.json
+```
+
+Debe responder `200`, y el JSON debe incluir:
+
+```json
+"client_id": "https://integratrip-temp.vercel.app/api/.well-known/oauth-client-metadata.json"
+```
+
+y:
+
+```json
+"token_endpoint_auth_method": "none"
+```
+
+**5. Entra limpio**
+Abre navegador incógnito o borra cookies de:
+
+```txt
+integratrip-temp.vercel.app
+tarea1-auth-z2fqxmm2ja-uc.a.run.app
+```
+
+Luego abre:
+
+```txt
+https://integratrip-temp.vercel.app
+```
+
+**6. Prueba login**
+Haz login desde la app.
+
+Debes ver una URL del AS parecida a:
+
+```txt
+https://tarea1-auth-z2fqxmm2ja-uc.a.run.app/realms/pre/authorize?...&resource=https%3A%2F%2Fintegratrip-temp.vercel.app&scope=mcp%3Atools...
+```
+
+Confirma dos cosas en la URL:
+- `resource=https://integratrip-temp.vercel.app`
+- `scope=mcp:tools`
+
+Después del login, debe volver a:
+
+```txt
+https://integratrip-temp.vercel.app
+```
+
+**7. Confirma sesión**
+En DevTools → Network, recarga la app y revisa:
+
+```txt
+GET /api/auth/me
+```
+
+Debe responder `200`.
+
+Si responde `401`, la cookie no quedó bien seteada o el dominio/origen no calza.
+
+**8. Conecta Andes Air, PRE**
+En la página de MCP:
+
+1. Click en conectar `Andes Air`.
+2. Debe redirigir al realm:
+
+```txt
+/realms/pre/authorize
+```
+
+3. En la URL confirma:
+
+```txt
+resource=https://tarea1-mcp-pre-z2fqxmm2ja-uc.a.run.app/mcp
+scope=mcp:tools
+redirect_uri=https://integratrip-temp.vercel.app/api/mcp/andes-air/callback
+```
+
+4. Acepta.
+5. Debe volver a la app.
+6. Entra a sus tools y ejecuta una.
+
+**9. Conecta StayWell, DCR**
+1. Click en conectar `StayWell`.
+2. Debe ir a:
+
+```txt
+/realms/dcr/authorize
+```
+
+3. Confirma:
+
+```txt
+resource=https://tarea1-mcp-dcr-z2fqxmm2ja-uc.a.run.app/mcp
+redirect_uri=https://integratrip-temp.vercel.app/api/mcp/staywell/callback
+```
+
+4. Acepta.
+5. Lista/ejecuta tools.
+
+Si falla antes del authorize, revisa logs de Render: probablemente DCR registration falló.
+
+**10. Conecta Cielo Sur, CIMD**
+1. Click en conectar `Cielo Sur`.
+2. Debe ir a:
+
+```txt
+/realms/cimd/authorize
+```
+
+3. Confirma que el `client_id` sea una URL:
+
+```txt
+https://integratrip-temp.vercel.app/api/.well-known/oauth-client-metadata.json
+```
+
+4. Confirma:
+
+```txt
+resource=https://tarea1-mcp-cimd-z2fqxmm2ja-uc.a.run.app/mcp
+redirect_uri=https://integratrip-temp.vercel.app/api/mcp/cielo-sur/callback
+```
+
+5. Acepta.
+6. Lista/ejecuta tools.
+
+**11. Prueba refresh en producción**
+En Supabase, tabla `mcp_connections`:
+
+1. Busca tu conexión.
+2. Cambia `expires_at` a una fecha pasada.
+3. Vuelve a la app y lista tools de ese MCP.
+
+Debe funcionar y actualizar `expires_at`.
+
+**12. Señales de éxito**
+Todo está OK si:
+- Login vuelve a la app y `/api/auth/me` responde `200`.
+- Los tres MCP redirigen al realm correcto.
+- PRE/DCR mandan secret en token internamente.
+- CIMD no usa secret.
+- Los access tokens permiten listar y ejecutar tools.
+- Refresh funciona al expirar `expires_at`.
+
+Si algo falla, el primer lugar para mirar es Render logs; los errores del AS suelen aparecer como `invalid_client`, `invalid_grant`, `invalid_target` o `redirect_uri not registered`.
+
+## Prompt
+
+en la docs se dice de agregar   &prompt=login como queryparam. Hazlo
 
 ## Respuesta
 
-`pdftotext` no está instalado, así que voy a extraer el PDF con Python si hay librería disponible. También veo una modificación pendiente en `Navbar.tsx`; la voy a tratar como cambio existente y revisar sin revertirla.
+Sí, lo agrego en el lugar correcto: al authorize del login de la app. Voy a hacer el cambio pequeño en el helper OAuth para soportar `prompt` opcional y lo activo como `prompt=login` solo en `start_login_flow`.
 
 ## Respuesta
 
-No hay librería Python para PDF instalada. Voy a buscar una herramienta del sistema alternativa (`mutool`, `qpdf`, etc.); si no existe, uso extracción cruda como último recurso.
+Voy a tocar solo `authorization_code.py` y `auth_service.py`: el helper agregará `prompt` únicamente si viene definido, y el login lo enviará con valor `login`.
 
 ## Respuesta
 
-Solo está `strings`, que a veces no sirve con PDFs comprimidos. Voy a intentar extraer suficiente texto del enunciado; si queda ilegible, usaré una instalación temporal aislada para leerlo sin tocar dependencias del proyecto.
+Cambio aplicado. Ahora verifico que compile y que el helper genere `prompt=login` sin afectar las URLs MCP que no lo piden.
 
 ## Respuesta
 
-`strings` no alcanza porque el PDF está comprimido. Voy a crear un venv temporal en `/tmp` e instalar solo `pypdf` ahí para leer el enunciado; no modifica el proyecto ni `requirements.txt`.
+La verificación backend pasó; hago un status corto para cerrar con los archivos exactos.
 
 ## Respuesta
 
-Ya tengo el texto del enunciado. Ahora reviso la app contra la rúbrica: login/logout, conexión PRE/DCR/CIMD, listar tools, llamar tools, persistencia, despliegue/config y riesgos de seguridad.
+Listo. Agregué `prompt=login` al flujo de login de la app.
+
+Cambios:
+- [authorization_code.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/oauth/authorization_code.py): `build_authorization_url` ahora acepta `prompt` opcional y lo agrega como query param solo si viene definido.
+- [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py): `start_login_flow` ahora llama el authorize con `prompt="login"`.
+
+Verifiqué:
+- `python -m compileall backend/app`
+- prueba directa del helper confirmando que login incluye `prompt=login`
+- prueba confirmando que las URLs MCP no incluyen `prompt`
+- `git diff --check`
+
+## Prompt
+
+una duda, por que mcp servers tienen como columna client id y client secret? tipo porque eso es propio del usuario verdad? si yo quisiera probar desde 0 total el flujo, como si yo fuese un usuario nuevo, que deberia hacer? se que deberia borrar las filas de mcp\_connections, pero con mcp\_servers que deberia haver? que pasa si un usuario nuevo se logea, que pasa con esos mcp\_servers?
 
 ## Respuesta
 
-El backend cubre las rutas principales. Ahora reviso persistencia/state, seguridad de cookies/tokens, metadata CIMD y la UI que permite navegar/listar/ejecutar.
+Buena duda. En este diseño, `mcp_servers` **no representa conexiones de un usuario**, sino la configuración global de cada servidor MCP que tu app sabe conectar.
+
+`mcp_connections`, en cambio, sí es por usuario.
+
+Entonces:
+
+```txt
+mcp_servers
+= catálogo global: Andes Air, StayWell, Cielo Sur
+= URLs, tipo de auth, endpoints, client_id/client_secret de la app cliente
+
+mcp_connections
+= vínculo usuario-servidor
+= access_token, refresh_token, expires_at, status
+```
+
+¿Por qué `client_id` y `client_secret` están en `mcp_servers`? Porque en OAuth el `client_id` identifica a **tu aplicación**, no al usuario final. El usuario autoriza a tu aplicación a acceder al MCP en su nombre. Por eso varios usuarios pueden compartir el mismo `client_id`/`client_secret`, pero cada uno tendrá sus propios tokens en `mcp_connections`.
+
+Por realm:
+
+```txt
+PRE
+client_id/client_secret vienen de la consola del AS.
+Son globales para tu app.
+Deben estar en mcp_servers.
+
+DCR
+tu app registra dinámicamente un cliente contra /register.
+El client_id/client_secret resultante también identifican a tu app.
+Se guardan globalmente en mcp_servers para reutilizarlos.
+
+CIMD
+no hay secret.
+client_id = URL pública del metadata JSON de tu app.
+También es global.
+```
+
+Para probar “desde 0” como **usuario nuevo**, borra solo las filas relacionadas al usuario:
+
+```txt
+users
+oauth_login_state
+oauth_mcp_state
+mcp_connections
+```
+
+En la práctica, lo más importante es borrar:
+
+```txt
+mcp_connections
+```
+
+y opcionalmente tu fila en:
+
+```txt
+users
+```
+
+No borres `mcp_servers` si quieres simular un usuario nuevo normal. Un usuario nuevo se logea, aparece/actualiza su fila en `users`, y cuando conecta Andes/StayWell/Cielo se crean filas nuevas en `mcp_connections` usando la configuración global ya existente en `mcp_servers`.
+
+Si quieres probar “desde cero total” como si desplegaras la app por primera vez, ahí sí puedes resetear parte de `mcp_servers`, pero con cuidado:
+
+```txt
+PRE:
+mantén client_id y client_secret.
+Si los borras, PRE no puede funcionar hasta que los vuelvas a copiar desde la consola.
+
+DCR:
+puedes borrar client_id y client_secret.
+Al conectar StayWell, el backend debería llamar /realms/dcr/register y guardarlos de nuevo.
+
+CIMD:
+mantén client_id como:
+https://integratrip-temp.vercel.app/api/.well-known/oauth-client-metadata.json
+y client_secret en null.
+Si lo borras, CIMD no puede iniciar porque el client_id ES esa URL.
+```
+
+Resumen corto:
+
+```txt
+Para usuario nuevo:
+borra mcp_connections del usuario. No toques mcp_servers.
+
+Para app recién instalada:
+mcp_servers debe existir como catálogo.
+PRE necesita client_id/client_secret preconfigurados.
+DCR puede empezar sin client_id/client_secret.
+CIMD necesita client_id = URL del metadata document y secret null.
+```
+
+Una cosa importante: si borras `mcp_servers` completos, la app ya no sabe qué servidores existen ni sus `mcp_url`, `auth_type`, `redirect_uris`, etc. Ahí no estás probando usuario nuevo, estás probando instalación/base de datos vacía, y actualmente el código no recrea ese catálogo automáticamente.
+
+## Prompt
+
+ya pero probar el flujo completo desde 0, como si otra persona se metiera a la pagina, que debo hacer?
 
 ## Respuesta
 
-Hay una cosa que ya salta como riesgo: el login lee claims del access token sin validar firma. Como el token viene directo del AS tras el intercambio de código, no es lo mismo que aceptar un token del navegador, pero para revisión final lo marco como riesgo si el corrector espera validación JWKS. Sigo con frontend y checks ejecutables.
+Para probarlo **como si fueras otra persona entrando por primera vez**, no tienes que tocar `mcp_servers`.
+
+Haz esto:
+
+**1. Borra solo tus datos de usuario/conexiones**
+En Supabase, borra las filas asociadas a tu usuario en:
+
+```txt
+mcp_connections
+users
+oauth_login_state
+oauth_mcp_state
+```
+
+Lo mínimo necesario es:
+
+```txt
+mcp_connections
+```
+
+Pero para simular “usuario nuevo” de verdad, borra también tu fila en `users`.
+
+**2. Limpia sesión del navegador**
+Usa una ventana incógnita, o borra cookies/local storage de:
+
+```txt
+https://integratrip-temp.vercel.app
+https://tarea1-auth-z2fqxmm2ja-uc.a.run.app
+```
+
+Esto es importante porque el AS puede recordar sesión si no usas incógnito.
+
+**3. Entra a producción**
+Abre:
+
+```txt
+https://integratrip-temp.vercel.app
+```
+
+**4. Haz login**
+Debería mandarte al AS con `prompt=login`, pedirte credenciales UC/número alumno y volver a:
+
+```txt
+https://integratrip-temp.vercel.app
+```
+
+Al volver, se debería crear tu usuario en `users`.
+
+**5. Conecta cada MCP desde cero**
+En la app:
+
+```txt
+Andes Air   -> PRE
+StayWell    -> DCR
+Cielo Sur   -> CIMD
+```
+
+Para cada uno:
+
+1. click en conectar
+2. redirección al AS
+3. consent
+4. vuelta a la app
+5. se crea una fila en `mcp_connections`
+6. puedes listar/ejecutar tools
+
+**6. Qué esperar en Supabase**
+Después del login:
+
+```txt
+users
+-> una fila nueva para tu email
+```
+
+Después de conectar cada MCP:
+
+```txt
+mcp_connections
+-> una fila por cada servidor conectado
+```
+
+O sea, al final deberías tener hasta 3 filas nuevas en `mcp_connections` para ese usuario.
+
+**No borres esto**
+No borres `mcp_servers`, porque eso es el catálogo global de la app. Una persona nueva que entra a la página usa esos registros existentes; no se crean de nuevo por usuario.
+
+Para simular una persona nueva sin tocar base de datos, lo más limpio es usar **otro correo UC válido** en incógnito. Si usas el mismo correo, entonces sí borra tus filas de `users` y `mcp_connections` antes.
+
+## Prompt
+
+# Files pasted by the user:
+
+## "G gaspar.magna@uc.cl IIC3103 · Tarea 1 Cómo hablar con este AS OAuth 2.1 + PKCE…": /home/gaspa/.codex/attachments/abe7ef7a-ded7-4223-8c6f-9208401fcbbb/pasted-text.txt
+
+## My request:
+entonces todo esto se cumple?
 
 ## Respuesta
 
-Frontend cumple el recorrido base: landing, login, página protegida, conectar, listar, seleccionar tool y ejecutar. Ahora corro verificaciones automáticas y reviso configuración de despliegue/secretos, porque eso es mínimo de corrección.
+Voy a contrastar el texto que pegaste con el estado actual del repo, porque aquí conviene responder con evidencia y no con “sí, parece”. Reviso la documentación adjunta y los puntos OAuth/MCP del backend.
 
 ## Respuesta
 
-Build/lint/compile pasan y no veo `.env`, `dist`, `node_modules` o `.venv` versionados. Ahora haré una prueba real mínima contra los MCP conectados: listar tools de los tres y ejecutar al menos una tool simple.
+El texto pegado coincide con la doc que veníamos usando. Voy a verificar ahora si el estado actual del código incluye las correcciones anteriores completas o solo la última de `prompt=login`; ese detalle cambia el veredicto.
 
 ## Respuesta
 
-Encontré una alerta de seguridad menor pero importante: `backend/.env.example` trae un `SESSION_SECRET_KEY` con pinta de secreto real. Aunque sea de ejemplo, para la entrega conviene que no parezca credencial reutilizable; lo dejaré vacío como el resto.
+El estado actual sí incluye discovery y `prompt=login`. Estoy sacando referencias exactas y una última verificación rápida de parámetros generados; hay una salvedad menor sobre usar GET versus POST para provocar el 401 inicial del MCP.
 
 ## Respuesta
 
-Sigo con prueba real de MCP usando la conexión activa local: voy a listar tools de Andes Air, StayWell y Cielo Sur, y llamar una tool simple de cada servicio para confirmar el camino completo.
+Hay una salvedad estricta: la secuencia del texto dice “POST al MCP sin token”, y el módulo de discovery estaba provocando el 401 con GET. Como los MCP aceptan ambos, funcionaba, pero para cumplir literal voy a dejarlo con POST y de paso quitar un log que podía imprimir una respuesta de registro sensible en un caso raro.
 
 ## Respuesta
 
-La prueba real pilló algo útil: Andes Air OK, pero StayWell no tiene `list_cities`; yo usé una tool inexistente para ese servidor. Reintento con tools reales sin argumentos (`list_bookings` donde exista, y `list_cities` solo en Cielo Sur si aparece).
+Ahora sí, lo dejo comprobado contra las metadata reales con el método documentado.
 
 ## Respuesta
 
-Las llamadas reales a los tres MCP funcionan para tools sin argumentos. Ahora reviso un par de bordes: endpoints protegidos, metadata CIMD pública y que el frontend pueda construir sin errores después del ajuste.
+Sí, **a nivel de código ahora se cumple** lo que dice esa documentación.
 
-## Respuesta
+Quedó así:
 
-Ojo: `backend/.env.example` está ignorado por `.gitignore`, así que ese ajuste de limpieza no forma parte del diff versionado. Lo relevante para entregar ahora mismo, según Git, es solo el cambio de marca en la navbar.
+- Login de la app va directo al realm `pre`, no por discovery MCP.
+- Login manda `scope=mcp:tools`.
+- Login manda `resource` como origin de la app.
+- Login manda `prompt=login`.
+- MCP discovery parte con `POST` sin token al MCP.
+- Lee `WWW-Authenticate`.
+- Lee `resource_metadata`.
+- Toma `authorization_servers[0]`.
+- Busca metadata del AS en el orden documentado.
+- Usa `authorization_endpoint`, `token_endpoint`, `registration_endpoint` y `client_id_metadata_document_supported` descubiertos.
+- Authorize usa `response_type=code`, PKCE S256, `state`, `resource`.
+- Token usa `application/x-www-form-urlencoded`.
+- PRE/DCR mandan `client_secret`.
+- CIMD no manda `client_secret`.
+- DCR registra con `grant_types=["authorization_code", "refresh_token"]`.
+- Refresh token manda `resource` y rota/conserva refresh según respuesta.
+- MCP se llama con `Authorization: Bearer <access_token>`.
 
-## Respuesta
+También ajusté el discovery para usar **POST** al MCP, porque la secuencia de la doc lo dice literalmente.
 
-Apareció otra modificación pendiente: `frontend/index.html`. La reviso porque puede haber sido de la marca o de un cambio accidental, y en una revisión final no conviene dejar sorpresas.
+Verifiqué:
+- `python -m compileall backend/app`
+- discovery real contra PRE/DCR/CIMD usando POST
+- `git diff --check`
 
-## Respuesta
-
-Para el requisito de despliegue también voy a probar las URLs públicas actuales con `curl`, porque el enunciado exige servicio disponible en internet. El navegador de búsqueda no pudo abrir URLs no descubiertas por búsqueda, así que lo verifico desde terminal.
-
-## Respuesta
-
-Despliegue público responde OK tanto frontend como backend y rewrite `/api`. Voy a hacer una revisión final de puntos del enunciado y chequear si el build local coincide con los cambios pendientes de marca antes del resumen.
-
-## Respuesta
-
-El frontend desplegado todavía muestra `<title>frontend</title>`, mientras tu working tree local tiene `MagnaTrip`. Eso indica que hay cambios locales no desplegados o no commiteados; lo marco como pendiente porque el enunciado pide que el servicio refleje fielmente el código entregado.
-
-## Respuesta
-
-La metadata CIMD pública responde bien. El `curl -I` a login dio 405 porque FastAPI no implementa HEAD para esa ruta, así que pruebo GET con headers para validar la redirección real.
-
-## Respuesta
-
-Ya tengo suficiente para el cierre: el core está bastante bien, pero hay un par de riesgos antes de entregar. Voy a sacar líneas exactas para que quede accionable.
-
-## Respuesta
-
-Me falta un punto de entrega: el documento de arquitectura. No voy a escribirlo ni corregirlo por la restricción del proyecto, pero sí puedo comprobar si existe un archivo entregable en el repo.
-
-## Respuesta
-
-**Hallazgos**
-1. **Bloqueante: no encontré documento de arquitectura versionado.**  
-   El enunciado exige “Documento de arquitectura de solución”. En el repo solo aparece el PDF del enunciado; no hay `informe`, `arquitectura`, `.docx` ni otro PDF propio. Por la restricción del proyecto no puedo escribirlo ni completarlo, pero sí: falta como entregable.
-
-2. **Riesgo de entrega: el despliegue no refleja exactamente el working tree local.**  
-   La URL pública `https://integratrip-temp.vercel.app` responde OK, pero todavía muestra `<title>frontend</title>`, mientras localmente [frontend/index.html](/home/gaspa/IIC3103/Tareas/T1/frontend/index.html:7) dice `MagnaTrip`. Hay cambios sin commitear/desplegar en:
-   - `frontend/index.html`
-   - `frontend/src/app/layouts/Navbar.tsx`
-
-3. **Riesgo: el repo remoto actual no parece ser GitHub Classroom.**  
-   `origin` apunta a `git@github.com:gaspar-mr05/integratrip-temp.git`. El enunciado pide que el código esté en el repositorio de GitHub Classroom de la tarea. Si este no es ese repo, hay que subirlo al correcto.
-
-4. **Riesgo de seguridad: el login lee claims sin validar firma.**  
-   En [access_token.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/security/access_token.py:4) se usa `jwt.get_unverified_claims`, y [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py:101) crea el usuario desde esos claims. Como el token viene directo del AS, no es el peor caso, pero el enunciado menciona JWKS para validar tokens. Yo lo dejaría como mejora importante si queda tiempo.
-
-**Checklist Del Enunciado**
-- Landing page: OK.
-- Login/logout: OK; probé `/api/auth/login` público y redirige al AS con PKCE.
-- Conexión MCP PRE/DCR/CIMD: implementado y con servidores configurados.
-- Listar tools: OK; probado real con Andes Air, StayWell y Cielo Sur.
-- Llamar tools: OK; probado real con tools simples de los tres MCP.
-- Resultados claros/contenidos: OK, incluyendo JSON y resultados vacíos.
-- Cambio de usuario: OK a nivel de logout/cookie; no hice prueba manual completa con dos usuarios.
-- Persistencia: OK vía Supabase.
-- Despliegue público: OK; frontend, backend `/health` y rewrite `/api/health` responden 200.
-- Conversaciones IA versionadas: OK, hay 13 archivos bajo `docs/ai-conversations`.
-
-**Verificado**
-- `npm run lint`
-- `npm run build`
-- `python -m compileall app`
-- `curl https://integratrip-temp.vercel.app`
-- `curl https://integratrip-temp.onrender.com/health`
-- `curl https://integratrip-temp.vercel.app/api/health`
-- llamadas reales MCP: `list_airports`, `list_bookings`, `list_cities`
-
-Mi lectura corta: la app está funcional para la rúbrica técnica, pero antes de entregar yo cerraría sí o sí el documento de arquitectura, commitearía/desplegaría los cambios locales, y confirmaría que estás subiendo al repo Classroom correcto.
+Lo único que todavía depende de producción externa es que Render tenga desplegado este código y que en la consola del AS estén registrados exactamente los redirect URIs productivos. El código ya está alineado; falta probar el flujo real en navegador después del deploy.
 

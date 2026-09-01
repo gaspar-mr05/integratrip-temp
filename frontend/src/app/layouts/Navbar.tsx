@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import { login, logout } from '../../features/auth/api'
+import { clearCurrentUserCache } from '../../features/auth/authCache'
 import type { CurrentUser } from '../../features/auth/types'
+import { clearMcpCache } from '../../features/mcp/mcpCache'
 import { Button } from '../../shared/ui'
 
 type NavbarProps = {
@@ -13,6 +15,12 @@ type NavbarProps = {
 export function Navbar({ isLoadingUser, user }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const isAuthenticated = user !== null
+
+  function handleLogout(): void {
+    clearCurrentUserCache()
+    clearMcpCache()
+    logout()
+  }
 
   return (
     <header className="border-b border-slate-200/80 bg-[#f7f7f5] px-5 sm:px-8 lg:px-12">
@@ -55,7 +63,7 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
                 >
                   MCP
                 </NavLink>
-                <Button onClick={logout} variant="secondary">
+                <Button onClick={handleLogout} variant="secondary">
                   Logout
                 </Button>
               </div>
@@ -92,7 +100,7 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
                   </NavLink>
                   <button
                     className="cursor-pointer rounded-md border-0 bg-transparent px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                    onClick={logout}
+                    onClick={handleLogout}
                     type="button"
                   >
                     Logout

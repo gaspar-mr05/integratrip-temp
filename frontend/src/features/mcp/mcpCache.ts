@@ -1,4 +1,10 @@
-import { readSessionCache, removeSessionCache, writeSessionCache, type CacheEntry } from '../../shared/lib/sessionCache'
+import {
+  readSessionCache,
+  removeSessionCache,
+  removeSessionCacheByPrefix,
+  writeSessionCache,
+  type CacheEntry,
+} from '../../shared/lib/sessionCache'
 import type { McpConnectionStatus, McpTool } from './types'
 
 const CONNECTION_STATUS_CACHE_TTL = 15 * 1000
@@ -91,4 +97,10 @@ export function invalidateMcpServerCache(serverName: string): void {
   toolsCache.delete(serverName)
   removeSessionCache(connectionStatusKey(serverName))
   removeSessionCache(toolsKey(serverName))
+}
+
+export function clearMcpCache(): void {
+  connectionStatusCache.clear()
+  toolsCache.clear()
+  removeSessionCacheByPrefix('integratrip:mcp:')
 }
