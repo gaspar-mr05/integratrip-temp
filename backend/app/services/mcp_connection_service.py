@@ -1,5 +1,3 @@
-"""Conectar un usuario con un servidor MCP: flujo OAuth y tokens vigentes."""
-
 from app.config import get_settings
 from app.db.mcp_connections import get_mcp_connection, upsert_mcp_connection
 from app.db.mcp_servers import get_mcp_server_by_name, update_mcp_server_credentials
@@ -112,7 +110,6 @@ def _redirect_uri(mcp_server: dict) -> str:
 
 
 def _client_secret(mcp_server: dict) -> str | None:
-    """Los clientes públicos (CIMD) se autentican sin secret."""
     if mcp_server["auth_type"] in PUBLIC_CLIENT_AUTH_TYPES:
         return None
     return mcp_server["client_secret_enc"]
@@ -250,7 +247,6 @@ def _refresh_connection(mcp_server: dict, user_id: str, refresh_token: str) -> s
         user_id=user_id,
         mcp_server_id=mcp_server["id"],
         access_token=access_token,
-        # Si el AS no rota el refresh_token, conservamos el que ya teníamos.
         refresh_token=tokens.get("refresh_token") or refresh_token,
         expires_in=tokens.get("expires_in"),
         scope=tokens.get("scope"),
@@ -259,7 +255,6 @@ def _refresh_connection(mcp_server: dict, user_id: str, refresh_token: str) -> s
 
 
 def get_valid_access_token(user_id: str, mcp_server: dict) -> str:
-    """Devuelve un access_token vigente, refrescándolo si expiró."""
     mcp_connection = get_mcp_connection(user_id, mcp_server["id"])
     if mcp_connection is None:
         raise McpNotConnectedError(f"No has conectado '{mcp_server['name']}' todavía")

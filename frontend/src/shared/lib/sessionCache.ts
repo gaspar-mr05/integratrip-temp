@@ -62,9 +62,7 @@ export function writeSessionCache<T>(key: string, value: T): void {
 
   try {
     window.sessionStorage.setItem(key, JSON.stringify(cachedValue))
-  } catch {
-    // La caché es opcional; la aplicación continúa usando los datos remotos.
-  }
+  } catch {}
 }
 
 export function removeSessionCache(key: string): void {
@@ -74,9 +72,7 @@ export function removeSessionCache(key: string): void {
 
   try {
     window.sessionStorage.removeItem(key)
-  } catch {
-    // La caché es opcional; no hay nada más que limpiar.
-  }
+  } catch {}
 }
 
 export function removeSessionCacheByPrefix(prefix: string): void {
@@ -90,7 +86,5 @@ export function removeSessionCacheByPrefix(prefix: string): void {
     )
 
     matchingKeys.forEach((key) => window.sessionStorage.removeItem(key))
-  } catch {
-    // La caché es opcional; no hay nada más que limpiar.
-  }
+  } catch {}
 }

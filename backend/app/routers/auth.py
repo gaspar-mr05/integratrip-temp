@@ -27,13 +27,17 @@ def _redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, headers={"Cache-Control": "no-store"})
 
 
-@router.get("/login")
-def login():
+def _start_login_redirect() -> RedirectResponse:
     try:
         url = start_login_flow()
     except LoginFlowError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return _redirect(url)
+
+
+@router.get("/login")
+def login():
+    return _start_login_redirect()
 
 
 @router.get("/callback")
@@ -52,13 +56,10 @@ def callback(
 
     try:
         code_verifier = consume_code_verifier(state)
-    except InvalidLoginStateError as exc:
-        # El AS puede repetir el callback después de que el primer request ya
-        # consumió el state. Si ese request creó una sesión válida, no dejamos
-        # al usuario detenido en el error del replay.
+    except InvalidLoginStateError:
         if get_optional_session_user_id(existing_session_token) is not None:
             return _redirect(get_settings().FRONTEND_URL)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _start_login_redirect()
 
     try:
         session_token = complete_login(code, code_verifier)
