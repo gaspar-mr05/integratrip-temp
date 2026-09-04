@@ -2,81 +2,98 @@
 
 ## Prompt
 
-Si una persona inicia sesión con otra cuenta en mi pagina, deberia aparecer los MCP desconetados? las conexiones son por usuario verdad? y cuando de los mcp se obtiene un client id, de que es? es siempre el mismo client id? son 3 distintos (uno por mcp)? el client id es por frontend?
+# Files pasted by the user:
+
+## "ogs Search ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ) ^ File \"/opt/render/project/s…": /home/gaspa/.codex/attachments/983b08c0-aa6f-494d-933d-49b1f254f67a/pasted-text.txt
+
+## My request:
+al iniciar sesion en una cuenta nueva , al ir a status aparece comprobando eternamente, con dos request con status 500 para ver el estado de conexión y con eso en los logs de render
 
 ## Respuesta
 
-Voy a revisar cómo están modeladas y persistidas las conexiones OAuth/MCP en este repositorio. Usaré `code-review`, `backend` y `supabase` porque la respuesta depende de la implementación real, no solo del estándar OAuth.
+Voy a rastrear el flujo de `status` desde esos errores 500 hasta la consulta/persistencia que falla para cuentas nuevas. Usaré `debugging` para aislar la causa y, según lo que encuentre, `backend`/`supabase` o `react` para aplicar el cambio mínimo y verificarlo.
 
 ## Respuesta
 
-La separación principal ya aparece clara: `mcp_connections` se consulta con `user_id`, mientras `client_id` vive en el catálogo global `mcp_servers`. Estoy comprobando ahora un detalle importante del frontend: si la caché de estado puede mostrar temporalmente la conexión del usuario anterior al cambiar de cuenta.
+El traceback ya ubica la falla: no es que una cuenta nueva tenga un estado inválido; la consulta a Supabase se corta en el cliente HTTP/2 compartido cuando las dos tarjetas consultan `/status` a la vez (`httpx.ReadError: Resource temporarily unavailable`). Ahora estoy comprobando cómo se crea y reutiliza ese cliente y cómo el frontend trata una consulta fallida, porque ambos puntos explican el 500 y el “Comprobando…” permanente.
 
 ## Respuesta
 
-Sí: las conexiones MCP son por usuario.
+La configuración instalada confirma el detalle: `postgrest 2.31.0` crea su transporte con `http2=True`, exactamente la ruta que falla en Render/Python 3.14. Voy a desactivar HTTP/2 sólo para el cliente de Supabase (manteniendo reutilización y conexiones HTTP/1.1) y agregar una salida explícita de error en la UI, para que incluso una caída transitoria nunca deje la tarjeta cargando indefinidamente.
 
-- `mcp_connections` se identifica mediante `(user_id, mcp_server_id)`. El backend consulta siempre la conexión del usuario autenticado: [mcp_connections.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/db/mcp_connections.py:50).
-- Por tanto, una cuenta nueva que nunca autorizó los MCP debería ver los tres como “Sin conectar”.
-- Sus access tokens y refresh tokens también quedan asociados a esa cuenta.
+## Respuesta
 
-Hay una salvedad en el frontend: la caché de estados se identifica solamente por servidor, no por usuario: [mcpCache.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/mcpCache.ts:16). Si cierras sesión e ingresas con otra cuenta en la misma pestaña, podría aparecer durante unos 15 segundos el estado “Conectado” del usuario anterior. Las tools podrían conservarse visualmente hasta 5 minutos. Esto no comparte realmente la autorización: el backend seguirá comprobando el `user_id` actual y rechazará el uso del MCP si esa cuenta no está conectada. Conviene limpiar la caché al cerrar/cambiar sesión o incluir el `user_id` en sus claves.
+El cambio ya está aplicado en las dos capas: Supabase usará HTTP/1.1 y, si aun así una consulta falla, la tarjeta pasará a “No disponible” en vez de conservar el estado `checking`. Estoy ejecutando ahora las pruebas del backend y los chequeos de TypeScript/lint para detectar cualquier incompatibilidad.
 
-Sobre el `client_id`: no identifica al usuario. Identifica a IntegraTrip como cliente OAuth frente a un servidor de autorización.
+## Respuesta
 
-En este proyecto hay conceptualmente un cliente por integración MCP:
+La verificación terminó limpia: 8 pruebas backend pasan (incluida la regresión del transporte HTTP/1.1), y el frontend supera lint, TypeScript y build de producción. El diff también está libre de errores de whitespace; sólo falta desplegar ambos servicios para validar el comportamiento contra Supabase desde Render.
 
-- Andes Air/PRE: `client_id` entregado y registrado previamente.
-- StayWell/DCR: el servidor genera un `client_id` mediante registro dinámico. Se guarda globalmente en `mcp_servers` y después se reutiliza para todos los usuarios: [mcp_connection_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/mcp_connection_service.py:121).
-- Cielo Sur/CIMD: el `client_id` es la URL pública del documento de metadatos de IntegraTrip, como `https://.../.well-known/oauth-client-metadata.json`: [oauth_client_metadata.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/routers/oauth_client_metadata.py:13).
+## Respuesta
 
-Así que normalmente son tres `client_id` distintos, uno por MCP/mecanismo, pero compartidos por todos los usuarios de la aplicación. Se mantienen iguales mientras no se vuelva a registrar el cliente, cambie la configuración o cambie la URL pública.
+Corregí el problema.
 
-Además existe `LOGIN_CLIENT_ID`, separado de esos tres, que identifica el cliente usado para iniciar sesión en IntegraTrip: [auth_service.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/services/auth_service.py:45). Por eso, contando el login de la página, conceptualmente tienes cuatro identidades OAuth.
+La causa era doble:
 
-No es exactamente “el client ID del frontend”: es el de la aplicación IntegraTrip. En esta implementación, el backend realiza OAuth, conserva secretos/tokens y recibe los callbacks; el frontend solo inicia las redirecciones.
+- El cliente de Supabase utilizaba HTTP/2 y fallaba en Render ante consultas concurrentes con `httpx.ReadError: Resource temporarily unavailable`.
+- El frontend ignoraba esos errores, dejando el estado en “Comprobando…” indefinidamente.
 
-No modifiqué archivos ni ejecuté pruebas; fue una revisión de la implementación actual.
+Cambios:
+
+- [supabase_client.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/db/supabase_client.py:11): Supabase ahora utiliza un cliente HTTP/1.1 compartido.
+- [requirements.txt](/home/gaspa/IIC3103/Tareas/T1/backend/requirements.txt:5): `httpx` quedó declarado directamente.
+- [useMcpConnectionStatuses.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/hooks/useMcpConnectionStatuses.ts:36): las consultas fallidas pasan a estado `error`.
+- [McpCard.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/components/McpCard.tsx:18): muestra “No disponible” en vez de permanecer cargando.
+- [mcp.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/types/mcp.ts:44): agregado el estado visual `error`.
+- Se agregó una prueba de regresión para la configuración HTTP/1.1.
+
+Verificación realizada:
+
+- 8 pruebas backend: correctas.
+- Compilación Python: correcta.
+- Lint frontend: correcto.
+- Build TypeScript/Vite: correcto.
+- `git diff --check`: correcto.
+
+Usé `debugging` para seguir el traceback y `backend`, `supabase`, `react`, `clean-code` y `testing` para mantener el arreglo aislado y verificable. Queda desplegar backend y frontend para confirmar el flujo real en Render.
 
 ## Prompt
 
-entonces que se borre la cache al cerrar sesión por favor o lo que recomiendes tu para que sea vea natural y el flujo se entienda. O lo otro, que aparezca chequeando cuando se esta viendo el status de una conexión, que no aparezca no conectado y despues conectado de golpe
+pero eso esta super hardcodeado no? no hay una manera mas natural?
 
 ## Respuesta
 
-Voy a ajustar las dos cosas como un solo flujo: limpiar la caché al cerrar sesión y mostrar un estado neutral de “Comprobando…” mientras se consulta cada conexión, evitando el salto engañoso de “Sin conectar” a “Conectado”. Usaré `react`, `clean-code` y `testing` para mantener el cambio pequeño y verificarlo.
+Sí: `timeout=120` quedó duplicando un valor interno de la librería y no es una solución especialmente elegante. `http2=False` sí era un workaround dirigido al traceback, pero prefiero revisar si podemos corregir la concurrencia en el diseño del endpoint y conservar la configuración estándar de Supabase antes de dejar ese parche. Voy a comparar esas alternativas con la estructura actual.
 
 ## Respuesta
 
-El ajuste más natural es mantener una caché válida visible, pero usar “Comprobando…” cuando todavía no existe un resultado. Además limpiaré tanto usuario como estados/tools MCP antes de redirigir al logout; así tampoco parpadea la sesión anterior al volver a la página.
+La alternativa más natural parece estar en el límite de infraestructura, no en el dominio: hacer reproducible el runtime de Render y evitar depender del HTTP/2 que activa internamente `postgrest`. Antes de cambiar el enfoque voy a verificar si este error está reconocido por las bibliotecas involucradas; así no sustituimos un valor hardcodeado por una refactorización mayor que sólo esconda el mismo fallo.
 
 ## Respuesta
 
-El comportamiento ya quedó implementado: al salir se limpian la identidad cacheada, estados y tools; al entrar sin datos cacheados, cada tarjeta muestra “Comprobando…” y reserva el espacio del botón hasta recibir la respuesta real. Ahora estoy revisando el diff y ejecutando lint/build.
+La API oficial de Supabase sí contempla pasar un `httpx.Client` propio; esa parte es el mecanismo correcto, no un hack interno. Lo que voy a corregir es que los parámetros operacionales (`HTTP/2` y timeout) vivan en `Settings`, con defaults y posibilidad de sobrescribirlos mediante variables de entorno en Render, en vez de quedar enterrados como literales en la capa de base de datos. La UI de error se mantiene porque resuelve independientemente el estado infinito.
 
 ## Respuesta
 
-Listo. El flujo ahora se comporta así:
+Sí, tenías razón: los valores estaban demasiado enterrados en el cliente.
 
-- Al cerrar sesión se eliminan la caché del usuario, los estados MCP y las tools almacenadas.
-- Si todavía no se conoce el estado de un MCP, aparece “Comprobando…” con indicador animado.
-- Durante esa comprobación no aparece prematuramente el botón “Conectar”.
-- Una caché válida todavía se muestra inmediatamente para evitar cargas innecesarias.
+Ahora quedaron como configuración operacional en [config.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/config.py:22):
 
-Archivos modificados:
+```env
+SUPABASE_HTTP2_ENABLED=false
+SUPABASE_HTTP_TIMEOUT_SECONDS=120
+```
 
-- [Navbar.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/app/layouts/Navbar.tsx:19)
-- [McpCard.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/components/McpCard.tsx:14)
-- [McpPage.tsx](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/pages/McpPage.tsx:26)
-- [mcpCache.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/features/mcp/mcpCache.ts:102)
-- [sessionCache.ts](/home/gaspa/IIC3103/Tareas/T1/frontend/src/shared/lib/sessionCache.ts:82)
-- Tipos MCP correspondientes.
+[supabase_client.py](/home/gaspa/IIC3103/Tareas/T1/backend/app/db/supabase_client.py:11) solamente consume esos valores. Pasar un cliente HTTP personalizado es el mecanismo oficial de Supabase; además, Supabase habilita HTTP/2 por defecto. [Documentación oficial](https://github.com/supabase/supabase/pull/48210/files), [anuncio de HTTP/2](https://github.com/supabase/supabase/blob/master/apps/www/_blog/2024-08-16-python-support.mdx).
 
-Verificado con:
+No cambié el endpoint para agrupar peticiones porque eso no impediría concurrencia entre usuarios y ampliaría innecesariamente el cambio. La UI sigue mostrando “No disponible” ante errores, evitando el estado eterno.
 
-- `npm run lint`
-- `npm run build`
-- `git diff --check`
+Verificación:
 
-Todos pasaron correctamente. No quedan problemas conocidos relacionados con este cambio.
+- 8 pruebas backend correctas.
+- Lint frontend correcto.
+- Build TypeScript/Vite correcto.
+- Compilación Python correcta.
+
+El skill de deployment orientó estos valores hacia configuración de entorno, donde corresponden.
 
