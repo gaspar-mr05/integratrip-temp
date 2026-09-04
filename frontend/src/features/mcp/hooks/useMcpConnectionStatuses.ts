@@ -40,8 +40,7 @@ export function useMcpConnectionStatuses(
           saveConnectionStatus(serverName, response.status)
           return [serverName, response.status] as const
         } catch {
-          saveConnectionStatus(serverName, 'disconnected')
-          return [serverName, 'disconnected'] as const
+          return null
         }
       }),
     ).then((connectionStatuses) => {
@@ -49,9 +48,13 @@ export function useMcpConnectionStatuses(
         return
       }
 
+      const refreshedStatuses = connectionStatuses.filter(
+        (status): status is readonly [string, McpConnectionStatus] => status !== null,
+      )
+
       setStatuses((currentStatuses) => ({
         ...currentStatuses,
-        ...Object.fromEntries(connectionStatuses),
+        ...Object.fromEntries(refreshedStatuses),
       }))
     })
 
