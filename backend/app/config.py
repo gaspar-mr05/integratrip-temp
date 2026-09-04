@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_HTTP2_ENABLED: bool = False
+    SUPABASE_HTTP_TIMEOUT_SECONDS: float = Field(default=120, gt=0)
 
     SESSION_SECRET_KEY: str = Field(min_length=32)
 

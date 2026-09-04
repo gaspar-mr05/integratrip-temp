@@ -2,6 +2,7 @@ fastapi
 uvicorn
 pydantic-settings
 supabase
+httpx
 python-dotenv
 python-jose[cryptography]
 requests

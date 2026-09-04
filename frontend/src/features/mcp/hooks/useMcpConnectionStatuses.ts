@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 
 import { getMcpConnectionStatus } from '../api'
 import { getCachedConnectionStatus, saveConnectionStatus } from '../mcpCache'
-import type { McpConnectionStatus } from '../types'
+import type { McpConnectionDisplayStatus } from '../types'
 
-type McpConnectionStatuses = Record<string, McpConnectionStatus>
+type McpConnectionStatuses = Record<string, McpConnectionDisplayStatus>
 
 function cachedStatuses(serverNames: string[]): McpConnectionStatuses {
   return Object.fromEntries(
@@ -40,7 +40,7 @@ export function useMcpConnectionStatuses(
           saveConnectionStatus(serverName, response.status)
           return [serverName, response.status] as const
         } catch {
-          return null
+          return [serverName, 'error'] as const
         }
       }),
     ).then((connectionStatuses) => {
@@ -48,13 +48,9 @@ export function useMcpConnectionStatuses(
         return
       }
 
-      const refreshedStatuses = connectionStatuses.filter(
-        (status): status is readonly [string, McpConnectionStatus] => status !== null,
-      )
-
       setStatuses((currentStatuses) => ({
         ...currentStatuses,
-        ...Object.fromEntries(refreshedStatuses),
+        ...Object.fromEntries(connectionStatuses),
       }))
     })
 

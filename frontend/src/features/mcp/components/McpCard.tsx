@@ -17,6 +17,7 @@ export const McpCard = ({ index, serverName, serverApiName, status }: Props) => 
 
   const hasTools = tools.length > 0
   const isChecking = status === 'checking'
+  const hasStatusError = status === 'error'
 
   return (
     <article className="flex min-h-56 flex-col justify-between gap-6 border-t border-slate-300 py-5 transition-colors hover:border-slate-950">
@@ -25,15 +26,17 @@ export const McpCard = ({ index, serverName, serverApiName, status }: Props) => 
           <span className="text-xs font-semibold tracking-[0.14em] text-slate-400">0{index}</span>
           <span
             aria-live="polite"
-            className={`inline-flex items-center gap-1.5 text-xs font-medium ${status === 'connected' ? 'text-emerald-700' : 'text-slate-500'}`}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium ${status === 'connected' ? 'text-emerald-700' : hasStatusError ? 'text-red-700' : 'text-slate-500'}`}
           >
             <span
-              className={`size-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-600' : isChecking ? 'animate-pulse bg-blue-500' : 'bg-slate-400'}`}
+              className={`size-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-600' : isChecking ? 'animate-pulse bg-blue-500' : hasStatusError ? 'bg-red-600' : 'bg-slate-400'}`}
             />
             {status === 'connected'
               ? 'Conectado'
               : isChecking
                 ? 'Comprobando…'
+                : hasStatusError
+                  ? 'No disponible'
                 : 'Sin conectar'}
           </span>
         </div>
@@ -68,8 +71,10 @@ export const McpCard = ({ index, serverName, serverApiName, status }: Props) => 
         >
           Conectar
         </Button>
-      ) : (
+      ) : isChecking ? (
         <Skeleton className="h-10 w-full sm:w-28" />
+      ) : (
+        <ErrorMessage message="No se pudo comprobar el estado de conexión." />
       )}
     </article>
   )
