@@ -6,7 +6,7 @@ export function LandingPage() {
           Plataforma de integración
         </p>
         <h1 className="m-0 max-w-3xl text-5xl font-semibold tracking-[-0.055em] text-slate-950 sm:text-6xl lg:text-7xl">
-          Herramientas conectadas, sin fricción.
+          Herramientas conectadas con imaginación y esfuerzo.
         </h1>
         <p className="m-0 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
           IntegraTrip reúne los servicios MCP para que puedas consultar y

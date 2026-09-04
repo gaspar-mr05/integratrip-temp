@@ -40,7 +40,7 @@ export function McpPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
         {mcpServers.map((server, index) => (
           <McpCard
             index={index + 1}
