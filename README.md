@@ -19,3 +19,4 @@ uvicorn app.main:app --reload
 ```
 
 
+URL para acceder a la página: https://integratrip-temp.vercel.app
