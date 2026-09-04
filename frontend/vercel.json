@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://integratrip-temp.onrender.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
