@@ -30,10 +30,10 @@ export function McpPage() {
     <section className="mx-auto grid w-full max-w-7xl gap-12">
       <div className="grid max-w-2xl gap-3">
         <p className="m-0 text-sm font-semibold tracking-[0.16em] text-blue-700 uppercase">
-          Directorio
+          Configuración
         </p>
         <h1 className="m-0 text-4xl leading-none font-semibold tracking-[-0.04em] text-slate-950 md:text-6xl">
-          Servidores MCP
+          Conexiones MCP
         </h1>
         <p className="m-0 text-base leading-7 text-slate-600">
           Conecta un servidor para listar y ejecutar sus tools.

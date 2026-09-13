@@ -12,7 +12,7 @@ export function ToolPageHeader({ tool, toolName }: ToolPageHeaderProps) {
     <div className="grid max-w-3xl gap-3">
       <Link
         className="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 no-underline transition-colors hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-        to="/mcp"
+        to="/config"
       >
         <span aria-hidden="true">←</span> Volver a servidores
       </Link>
