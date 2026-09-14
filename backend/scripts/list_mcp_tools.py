@@ -1,12 +1,12 @@
 import asyncio
 import sys
 
-from app.services.mcp_connection_service import (
+from app.services.mcp.connection import (
     ConnectionFlowError,
     McpNotConnectedError,
     McpServerNotFoundError,
 )
-from app.services.mcp_tools_service import McpProtocolError, list_server_tools
+from app.services.mcp.tools import McpProtocolError, list_server_tools
 
 DEFAULT_SERVER_NAME = "andes-air"
 USAGE = "Uso: python -m scripts.list_mcp_tools <user_id> [server_name]"

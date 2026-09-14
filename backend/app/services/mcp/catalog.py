@@ -1,8 +1,9 @@
 import json
 import re
-from dataclasses import dataclass
+
 from app.db.mcp_connections import list_active_mcp_servers
-from app.services.mcp_tools_service import list_server_tools
+from app.services.mcp.models import CatalogTool
+from app.services.mcp.tools import list_server_tools
 
 _LLM_TOOL_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
@@ -13,15 +14,6 @@ class InvalidCatalogToolError(ValueError):
 
 class DuplicateCatalogToolError(ValueError):
     pass
-
-
-@dataclass(frozen=True)
-class CatalogTool:
-    llm_name: str
-    description: str
-    input_schema_json: str
-    server_name: str
-    mcp_tool_name: str
 
 
 def _require_non_empty_string(value: object, error_message: str) -> str:

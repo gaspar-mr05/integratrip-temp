@@ -1,5 +1,5 @@
-from app.services.mcp_tool_catalog_service import CatalogTool
-from app.services.mcp_tools_service import call_server_tool
+from app.services.mcp.models import CatalogTool
+from app.services.mcp.tools import call_server_tool
 
 
 class UnknownCatalogToolError(ValueError):
