@@ -1,12 +1,17 @@
 import json
 import re
 from dataclasses import dataclass
-
+from app.db.mcp_connections import list_active_mcp_servers
+from app.services.mcp_tools_service import list_server_tools
 
 _LLM_TOOL_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
 
 class InvalidCatalogToolError(ValueError):
+    pass
+
+
+class DuplicateCatalogToolError(ValueError):
     pass
 
 
@@ -78,3 +83,27 @@ def _build_catalog_tool(mcp_server: dict, mcp_tool: dict) -> CatalogTool:
         server_name=server_name,
         mcp_tool_name=mcp_tool_name,
     )
+
+
+async def build_tool_catalog(user_id: str) -> list[CatalogTool]:
+    catalog_tools: list[CatalogTool] = []
+    used_names: set[str] = set()
+
+    for mcp_server in list_active_mcp_servers(user_id):
+        server_name = _require_non_empty_string(
+            mcp_server.get("name"),
+            "El servidor MCP no tiene un nombre válido",
+        )
+        mcp_tools = await list_server_tools(user_id, server_name)
+
+        for mcp_tool in mcp_tools:
+            catalog_tool = _build_catalog_tool(mcp_server, mcp_tool)
+            if catalog_tool.llm_name in used_names:
+                raise DuplicateCatalogToolError(
+                    f"Se encontró una tool duplicada con llm_name='{catalog_tool.llm_name}'"
+                )
+
+            used_names.add(catalog_tool.llm_name)
+            catalog_tools.append(catalog_tool)
+
+    return catalog_tools
