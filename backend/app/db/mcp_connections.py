@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.db.supabase_client import get_supabase_client
+from app.clients.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

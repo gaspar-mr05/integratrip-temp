@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.db.supabase_client import get_supabase_client
+from app.clients.supabase_client import get_supabase_client
 
 TABLE = "oauth_login_state"
 STATE_TTL = timedelta(minutes=10)

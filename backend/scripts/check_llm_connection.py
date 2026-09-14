@@ -2,7 +2,7 @@ import asyncio
 
 import llm_pb2
 
-from app.services.llm_client import LlmClient, LlmClientError
+from app.clients.llm_client import LlmClient, LlmClientError
 
 
 async def main() -> None:
@@ -31,4 +31,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-
