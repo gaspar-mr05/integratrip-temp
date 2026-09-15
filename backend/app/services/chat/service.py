@@ -22,6 +22,23 @@ class PendingConfirmationMessageNotFoundError(Exception):
     pass
 
 
+def load_conversation_history(
+    user_id: str,
+    conversation_id: str,
+) -> tuple[dict, list[dict]]:
+    conversation = get_conversation(
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
+    if not conversation:
+        raise ConversationNotFoundError(
+            "La conversación no existe o no pertenece al usuario"
+        )
+
+    messages = list_messages(conversation_id=conversation_id)
+    return conversation, messages
+
+
 def _validate_user_text(user_text: str) -> None:
     if not user_text.strip():
         raise EmptyUserTextError("El texto del usuario no puede estar vacío")
@@ -31,16 +48,10 @@ def _load_history(
     user_id: str,
     conversation_id: str,
 ) -> tuple[list[dict], list[llm_pb2.Message]]:
-    conversation = get_conversation(
-        conversation_id=conversation_id,
-        user_id=user_id,
+    _, rows = load_conversation_history(
+        user_id,
+        conversation_id,
     )
-    if not conversation:
-        raise ConversationNotFoundError(
-            "La conversación no existe o no pertenece al usuario"
-        )
-
-    rows = list_messages(conversation_id=conversation_id)
     history = [transform_dict_to_message(row) for row in rows]
     return rows, history
 
