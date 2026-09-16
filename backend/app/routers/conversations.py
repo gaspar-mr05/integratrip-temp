@@ -143,13 +143,13 @@ async def approve_confirmation_endpoint(
     "/{conversation_id}/confirmations/{confirmation_id}/reject",
     status_code=status.HTTP_200_OK,
 )
-def reject_confirmation_endpoint(
+async def reject_confirmation_endpoint(
     conversation_id: str,
     confirmation_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
     try:
-        result = reject_confirmation(
+        result = await reject_confirmation(
             user_id=user_id,
             conversation_id=conversation_id,
             confirmation_id=confirmation_id,
@@ -163,5 +163,15 @@ def reject_confirmation_endpoint(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="La confirmación ya fue procesada o no está disponible",
+        ) from exc
+    except LlmRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Se alcanzó el límite de solicitudes al servicio LLM",
+        ) from exc
+    except AgentTurnLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="El agente no pudo completar la respuesta",
         ) from exc
     return result

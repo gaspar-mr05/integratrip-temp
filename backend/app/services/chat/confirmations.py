@@ -47,7 +47,7 @@ def _build_rejection_message(
     return transform_message_to_dict(tool_message, sequence_number)
 
 
-def reject_confirmation(
+async def reject_confirmation(
     user_id: str,
     conversation_id: str,
     confirmation_id: str,
@@ -64,7 +64,7 @@ def reject_confirmation(
         confirmation,
         _next_message_sequence(messages),
     )
-    inserted_messages = insert_messages(
+    insert_messages(
         conversation_id=conversation_id,
         messages=[message],
     )
@@ -72,7 +72,11 @@ def reject_confirmation(
         user_id=user_id,
         conversation_id=conversation_id,
     )
-    return inserted_messages[0]
+
+    return await resume_conversation(
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
 
 
 async def approve_confirmation(
