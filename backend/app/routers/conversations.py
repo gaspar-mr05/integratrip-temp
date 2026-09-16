@@ -21,8 +21,7 @@ from app.services.chat import (
     PendingConfirmationMessageNotFoundError,
     load_conversation_history,
     run_conversation_turn,
-)
-
+    reject_confirmation)
 
 router = APIRouter(
     prefix="/conversations",
@@ -142,19 +141,22 @@ async def create_message_endpoint(
     }
 
 
-@router.post("/{conversation_id}/messages/{message_id}/approve", status_code=status.HTTP_201_CREATED)
-def approve_message_endpoint(
+@router.post("/{conversation_id}/confirmations/{confirmation_id}/approve", status_code=status.HTTP_200_OK)
+def approve_confirmation_endpoint(
     conversation_id: str,
-    message_id: str,
+    confirmation_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
     pass
 
-@router.post("/{conversation_id}/messages/{message_id}/reject", status_code=status.HTTP_201_CREATED)
-def reject_message_endpoint(
+@router.post("/{conversation_id}/confirmations/{confirmation_id}/reject", status_code=status.HTTP_200_OK)
+def reject_confirmation_endpoint(
     conversation_id: str,
-    message_id: str,
+    confirmation_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
-    pass
-
+    reject_confirmation(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        confirmation_id=confirmation_id,
+    )

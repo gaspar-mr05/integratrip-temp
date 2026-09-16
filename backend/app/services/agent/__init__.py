@@ -3,6 +3,8 @@ from app.services.agent.service import (
     MAX_AGENT_TURNS,
     AgentTurnLimitError,
     InvalidAgentResponseError,
+    InvalidAgentResumeError,
+    resume_agent,
     run_agent,
 )
 
@@ -11,6 +13,8 @@ __all__ = [
     "AgentRunResult",
     "AgentTurnLimitError",
     "InvalidAgentResponseError",
-    "run_agent",
+    "InvalidAgentResumeError",
     "PendingToolConfirmation",
+    "resume_agent",
+    "run_agent",
 ]

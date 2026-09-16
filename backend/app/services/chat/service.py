@@ -3,7 +3,12 @@ import llm_pb2
 from app.db.conversations import get_conversation, touch_conversation
 from app.db.messages import insert_messages, list_messages
 from app.db.pending_confirmations import insert_pending_confirmations
-from app.services.agent import AgentRunResult, PendingToolConfirmation, run_agent
+from app.services.agent import (
+    AgentRunResult,
+    PendingToolConfirmation,
+    resume_agent,
+    run_agent,
+)
 from app.services.chat.transform_messages import (
     transform_dict_to_message,
     transform_message_to_dict,
@@ -133,15 +138,12 @@ def _persist_pending_confirmations(
     )
 
 
-async def run_conversation_turn(
+def _persist_agent_result(
     user_id: str,
     conversation_id: str,
-    user_text: str,
-) -> AgentRunResult:
-    _validate_user_text(user_text)
-    stored_rows, history = _load_history(user_id, conversation_id)
-    result = await run_agent(user_id, history, user_text)
-
+    stored_rows: list[dict],
+    result: AgentRunResult,
+) -> None:
     generated_rows = _build_generated_rows(stored_rows, result)
     inserted_messages = insert_messages(
         conversation_id=conversation_id,
@@ -155,6 +157,44 @@ async def run_conversation_turn(
     touch_conversation(
         user_id=user_id,
         conversation_id=conversation_id,
+    )
+
+
+async def run_conversation_turn(
+    user_id: str,
+    conversation_id: str,
+    user_text: str,
+) -> AgentRunResult:
+    _validate_user_text(user_text)
+    stored_rows, history = _load_history(user_id, conversation_id)
+    result = await run_agent(user_id, history, user_text)
+
+    _persist_agent_result(
+        user_id,
+        conversation_id,
+        stored_rows,
+        result,
+    )
+
+    return result
+
+
+
+async def resume_conversation(
+    user_id: str,
+    conversation_id: str,
+) -> AgentRunResult:
+    stored_rows, history = _load_history(
+        user_id,
+        conversation_id,
+    )
+    result = await resume_agent(user_id, history)
+
+    _persist_agent_result(
+        user_id,
+        conversation_id,
+        stored_rows,
+        result,
     )
 
     return result

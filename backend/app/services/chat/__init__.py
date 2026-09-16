@@ -1,8 +1,13 @@
+from app.services.chat.confirmations import (
+    InvalidPendingConfirmationError,
+    reject_confirmation,
+)
 from app.services.chat.service import (
     ConversationNotFoundError,
     EmptyUserTextError,
     PendingConfirmationMessageNotFoundError,
     load_conversation_history,
+    resume_conversation,
     run_conversation_turn,
 )
 from app.services.chat.transform_messages import (
@@ -16,11 +21,14 @@ from app.services.chat.transform_messages import (
 __all__ = [
     "ConversationNotFoundError",
     "EmptyUserTextError",
+    "InvalidPendingConfirmationError",
     "InvalidStoredMessageError",
     "NegativeSequenceNumberError",
     "PendingConfirmationMessageNotFoundError",
     "RoleUnspecifiedError",
     "load_conversation_history",
+    "reject_confirmation",
+    "resume_conversation",
     "run_conversation_turn",
     "transform_dict_to_message",
     "transform_message_to_dict",

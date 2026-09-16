@@ -9,6 +9,14 @@ class PendingConfirmationInsertError(Exception):
     pass
 
 
+class PendingConfirmationUnavailableError(Exception):
+    pass
+
+
+class PendingConfirmationUpdateError(Exception):
+    pass
+
+
 def insert_pending_confirmations(
     *,
     conversation_id: str,
@@ -58,3 +66,75 @@ def insert_pending_confirmations(
         )
 
     return result.data
+def _transition_confirmation(
+    *,
+    conversation_id: str,
+    confirmation_id: str,
+    expected_status: str,
+    target_status: str,
+) -> dict:
+    try:
+        result = (
+            get_supabase_client()
+            .table("pending_confirmations")
+            .update({"status": target_status})
+            .eq("id", confirmation_id)
+            .eq("conversation_id", conversation_id)
+            .eq("status", expected_status)
+            .execute()
+        )
+    except APIError as exc:
+        raise PendingConfirmationUpdateError(
+            "No se pudo actualizar la confirmación pendiente"
+        ) from exc
+
+    if not result.data:
+        raise PendingConfirmationUnavailableError(
+            "La confirmación pendiente no está disponible para actualizar"
+        )
+
+    if len(result.data) != 1:
+        raise PendingConfirmationUpdateError(
+            "Se actualizaron múltiples confirmaciones pendientes"
+        )
+
+    return result.data[0]
+
+
+def claim_pending_confirmation(
+    *,
+    conversation_id: str,
+    confirmation_id: str,
+) -> dict:
+    return _transition_confirmation(
+        conversation_id=conversation_id,
+        confirmation_id=confirmation_id,
+        expected_status="pending",
+        target_status="processing",
+    )
+
+
+def reject_pending_confirmation(
+    *,
+    conversation_id: str,
+    confirmation_id: str,
+) -> dict:
+    return _transition_confirmation(
+        conversation_id=conversation_id,
+        confirmation_id=confirmation_id,
+        expected_status="pending",
+        target_status="rejected",
+    )
+
+
+def complete_approved_confirmation(
+    *,
+    conversation_id: str,
+    confirmation_id: str,
+) -> dict:
+    return _transition_confirmation(
+        conversation_id=conversation_id,
+        confirmation_id=confirmation_id,
+        expected_status="processing",
+        target_status="approved",
+    )
