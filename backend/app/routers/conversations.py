@@ -2,26 +2,24 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.clients.llm_client import LlmRateLimitError
 from app.db.conversations import (
-    ConversationCreateError,
-    ConversationListError,
-    ConversationReadError,
-    ConversationUpdateError,
     create_conversation,
     list_conversations,
 )
-from app.db.messages import MessageInsertError, MessageListError
-from app.db.pending_confirmations import PendingConfirmationInsertError
+from app.db.pending_confirmations import (
+    PendingConfirmationUnavailableError,
+    list_pending_confirmations,
+)
 from app.schemas.conversations import SendMessageRequest
 from app.security.session import get_current_user_id
 from app.services.agent import AgentTurnLimitError
 from app.services.chat import (
     ConversationNotFoundError,
     EmptyUserTextError,
-    InvalidStoredMessageError,
-    PendingConfirmationMessageNotFoundError,
+    approve_confirmation,
     load_conversation_history,
+    reject_confirmation,
     run_conversation_turn,
-    reject_confirmation)
+)
 
 router = APIRouter(
     prefix="/conversations",
@@ -33,26 +31,14 @@ router = APIRouter(
 def create_conversation_endpoint(
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return create_conversation(user_id=user_id)
-    except ConversationCreateError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo crear la conversación",
-        ) from exc
+    return create_conversation(user_id=user_id)
 
 
 @router.get("", status_code=status.HTTP_200_OK)
 def list_conversations_endpoint(
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return list_conversations(user_id=user_id)
-    except ConversationListError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo listar las conversaciones",
-        ) from exc
+    return list_conversations(user_id=user_id)
 
 
 @router.get("/{conversation_id}", status_code=status.HTTP_200_OK)
@@ -65,20 +51,18 @@ def get_conversation_endpoint(
             user_id=user_id,
             conversation_id=conversation_id,
         )
+        pending_confirmations = list_pending_confirmations(
+            conversation_id=conversation_id,
+        )
     except ConversationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="La conversación no existe o no pertenece al usuario",
         ) from exc
-    except (ConversationReadError, MessageListError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo obtener la conversación",
-        ) from exc
-
     return {
         "conversation": conversation,
         "messages": messages,
+        "pending_confirmations": pending_confirmations,
     }
 
 
@@ -114,49 +98,70 @@ async def create_message_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="El agente no pudo completar la respuesta",
         ) from exc
-    except (
-        ConversationReadError,
-        ConversationUpdateError,
-        InvalidStoredMessageError,
-        MessageInsertError,
-        MessageListError,
-        PendingConfirmationInsertError,
-        PendingConfirmationMessageNotFoundError,
-    ) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo procesar el mensaje",
-        ) from exc
-
-    return {
-        "text": result.generated_messages[-1].text,
-        "pending_confirmations": [
-            {
-                "function_call_id": confirmation.function_call_id,
-                "llm_name": confirmation.llm_name,
-                "arguments_json": confirmation.arguments_json,
-            }
-            for confirmation in result.pending_confirmations
-        ],
-    }
+    return result
 
 
-@router.post("/{conversation_id}/confirmations/{confirmation_id}/approve", status_code=status.HTTP_200_OK)
-def approve_confirmation_endpoint(
+@router.post(
+    "/{conversation_id}/confirmations/{confirmation_id}/approve",
+    status_code=status.HTTP_200_OK,
+)
+async def approve_confirmation_endpoint(
     conversation_id: str,
     confirmation_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
-    pass
+    try:
+        result = await approve_confirmation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            confirmation_id=confirmation_id,
+        )
+    except ConversationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La conversación no existe o no pertenece al usuario",
+        ) from exc
+    except PendingConfirmationUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La confirmación ya fue procesada o no está disponible",
+        ) from exc
+    except LlmRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Se alcanzó el límite de solicitudes al servicio LLM",
+        ) from exc
+    except AgentTurnLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="El agente no pudo completar la respuesta",
+        ) from exc
+    return result
 
-@router.post("/{conversation_id}/confirmations/{confirmation_id}/reject", status_code=status.HTTP_200_OK)
+
+@router.post(
+    "/{conversation_id}/confirmations/{confirmation_id}/reject",
+    status_code=status.HTTP_200_OK,
+)
 def reject_confirmation_endpoint(
     conversation_id: str,
     confirmation_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
-    reject_confirmation(
-        user_id=user_id,
-        conversation_id=conversation_id,
-        confirmation_id=confirmation_id,
-    )
+    try:
+        result = reject_confirmation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            confirmation_id=confirmation_id,
+        )
+    except ConversationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La conversación no existe o no pertenece al usuario",
+        ) from exc
+    except PendingConfirmationUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La confirmación ya fue procesada o no está disponible",
+        ) from exc
+    return result

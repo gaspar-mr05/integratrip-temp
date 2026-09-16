@@ -115,9 +115,9 @@ def _persist_pending_confirmations(
     conversation_id: str,
     inserted_messages: list[dict],
     pending_confirmations: tuple[PendingToolConfirmation, ...],
-) -> None:
+) -> list[dict]:
     if not pending_confirmations:
-        return
+        return []
 
     model_message_id = _find_pending_model_message_id(
         inserted_messages,
@@ -131,7 +131,8 @@ def _persist_pending_confirmations(
         }
         for confirmation in pending_confirmations
     ]
-    insert_pending_confirmations(
+
+    return insert_pending_confirmations(
         conversation_id=conversation_id,
         model_message_id=model_message_id,
         pending_confirmations=confirmation_rows,
@@ -143,58 +144,66 @@ def _persist_agent_result(
     conversation_id: str,
     stored_rows: list[dict],
     result: AgentRunResult,
-) -> None:
+) -> list[dict]:
     generated_rows = _build_generated_rows(stored_rows, result)
     inserted_messages = insert_messages(
         conversation_id=conversation_id,
         messages=generated_rows,
     )
-    _persist_pending_confirmations(
+    inserted_confirmations = _persist_pending_confirmations(
         conversation_id,
         inserted_messages,
         result.pending_confirmations,
     )
+
     touch_conversation(
         user_id=user_id,
         conversation_id=conversation_id,
     )
+
+    return inserted_confirmations
 
 
 async def run_conversation_turn(
     user_id: str,
     conversation_id: str,
     user_text: str,
-) -> AgentRunResult:
+) -> dict:
     _validate_user_text(user_text)
     stored_rows, history = _load_history(user_id, conversation_id)
-    result = await run_agent(user_id, history, user_text)
+    agent_result = await run_agent(user_id, history, user_text)
 
-    _persist_agent_result(
+    inserted_confirmations = _persist_agent_result(
         user_id,
         conversation_id,
         stored_rows,
-        result,
+        agent_result,
     )
 
-    return result
-
+    return {
+        "text": agent_result.generated_messages[-1].text,
+        "pending_confirmations": inserted_confirmations,
+    }
 
 
 async def resume_conversation(
     user_id: str,
     conversation_id: str,
-) -> AgentRunResult:
+) -> dict:
     stored_rows, history = _load_history(
         user_id,
         conversation_id,
     )
-    result = await resume_agent(user_id, history)
+    agent_result = await resume_agent(user_id, history)
 
-    _persist_agent_result(
+    inserted_confirmations = _persist_agent_result(
         user_id,
         conversation_id,
         stored_rows,
-        result,
+        agent_result,
     )
 
-    return result
+    return {
+        "text": agent_result.generated_messages[-1].text,
+        "pending_confirmations": inserted_confirmations,
+    }

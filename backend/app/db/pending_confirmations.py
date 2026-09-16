@@ -17,6 +17,10 @@ class PendingConfirmationUpdateError(Exception):
     pass
 
 
+class PendingConfirmationListError(Exception):
+    pass
+
+
 def insert_pending_confirmations(
     *,
     conversation_id: str,
@@ -66,6 +70,33 @@ def insert_pending_confirmations(
         )
 
     return result.data
+
+
+def list_pending_confirmations(
+    *,
+    conversation_id: str,
+) -> list[dict]:
+    try:
+        result = (
+            get_supabase_client()
+            .table("pending_confirmations")
+            .select(
+                "id, conversation_id, model_message_id, "
+                "function_call_id, llm_name, arguments_json, status"
+            )
+            .eq("conversation_id", conversation_id)
+            .eq("status", "pending")
+            .order("created_at", desc=False)
+            .execute()
+        )
+    except APIError as exc:
+        raise PendingConfirmationListError(
+            "No se pudieron obtener las confirmaciones pendientes"
+        ) from exc
+
+    return result.data or []
+
+
 def _transition_confirmation(
     *,
     conversation_id: str,

@@ -3,15 +3,13 @@ from collections.abc import Iterable
 
 import llm_pb2
 
+from app.services.agent.models import PendingToolConfirmation
+from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.dispatcher import (
     InvalidToolArgumentsError,
     UnknownCatalogToolError,
     dispatch_tool_call,
 )
-
-from app.services.agent.models import PendingToolConfirmation
-
-
 from app.services.mcp.models import CatalogTool
 from app.services.mcp.tools import McpProtocolError, McpToolExecutionError
 
@@ -66,20 +64,13 @@ def _requires_confirmation(
     )
 
 
-async def _execute_function_call(
+async def _dispatch_function_call(
     user_id: str,
     catalog: list[CatalogTool],
     function_call: llm_pb2.FunctionCall,
+    arguments: dict,
 ) -> llm_pb2.FunctionResult:
     try:
-        arguments = _parse_function_arguments(function_call.arguments_json)
-
-        if _requires_confirmation(catalog, function_call.name):
-            return _build_error_result(
-                function_call,
-                "La operación requiere confirmación explícita del usuario",
-            )
-
         result = await dispatch_tool_call(
             user_id,
             catalog,
@@ -87,7 +78,6 @@ async def _execute_function_call(
             arguments,
         )
     except (
-        InvalidFunctionArgumentsError,
         InvalidToolArgumentsError,
         McpToolExecutionError,
         UnknownCatalogToolError,
@@ -112,6 +102,76 @@ async def _execute_function_call(
         result_json=result_json,
         id=function_call.id,
         is_error=False,
+    )
+
+
+async def _execute_function_call(
+    user_id: str,
+    catalog: list[CatalogTool],
+    function_call: llm_pb2.FunctionCall,
+) -> llm_pb2.FunctionResult:
+    try:
+        arguments = _parse_function_arguments(function_call.arguments_json)
+    except InvalidFunctionArgumentsError as exc:
+        return _build_error_result(function_call, str(exc))
+
+    if _requires_confirmation(catalog, function_call.name):
+        return _build_error_result(
+            function_call,
+            "La operación requiere confirmación explícita del usuario",
+        )
+
+    return await _dispatch_function_call(
+        user_id,
+        catalog,
+        function_call,
+        arguments,
+    )
+
+
+async def execute_approved_tool(
+    user_id: str,
+    confirmation: dict,
+) -> llm_pb2.FunctionResult:
+    try:
+        function_call_id = confirmation["function_call_id"]
+        llm_name = confirmation["llm_name"]
+        arguments = confirmation["arguments_json"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(
+            "La confirmación aprobada tiene una estructura inválida"
+        ) from exc
+
+    if (
+        not isinstance(function_call_id, str)
+        or not function_call_id
+        or not isinstance(llm_name, str)
+        or not llm_name
+        or not isinstance(arguments, dict)
+    ):
+        raise ValueError(
+            "La confirmación aprobada tiene una estructura inválida"
+        )
+
+    catalog = await build_tool_catalog(user_id)
+    if not _requires_confirmation(catalog, llm_name):
+        raise ValueError("La tool aprobada no requiere confirmación")
+
+    function_call = llm_pb2.FunctionCall(
+        id=function_call_id,
+        name=llm_name,
+        arguments_json=json.dumps(
+            arguments,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
+    return await _dispatch_function_call(
+        user_id,
+        catalog,
+        function_call,
+        arguments,
     )
 
 

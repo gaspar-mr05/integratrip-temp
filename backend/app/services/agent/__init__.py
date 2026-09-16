@@ -7,6 +7,7 @@ from app.services.agent.service import (
     resume_agent,
     run_agent,
 )
+from app.services.agent.tool_calls import execute_approved_tool
 
 __all__ = [
     "MAX_AGENT_TURNS",
@@ -15,6 +16,7 @@ __all__ = [
     "InvalidAgentResponseError",
     "InvalidAgentResumeError",
     "PendingToolConfirmation",
+    "execute_approved_tool",
     "resume_agent",
     "run_agent",
 ]

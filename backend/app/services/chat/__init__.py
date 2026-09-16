@@ -1,5 +1,5 @@
 from app.services.chat.confirmations import (
-    InvalidPendingConfirmationError,
+    approve_confirmation,
     reject_confirmation,
 )
 from app.services.chat.service import (
@@ -21,12 +21,12 @@ from app.services.chat.transform_messages import (
 __all__ = [
     "ConversationNotFoundError",
     "EmptyUserTextError",
-    "InvalidPendingConfirmationError",
     "InvalidStoredMessageError",
     "NegativeSequenceNumberError",
     "PendingConfirmationMessageNotFoundError",
     "RoleUnspecifiedError",
     "load_conversation_history",
+    "approve_confirmation",
     "reject_confirmation",
     "resume_conversation",
     "run_conversation_turn",
