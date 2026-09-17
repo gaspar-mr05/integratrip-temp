@@ -4,6 +4,7 @@ from app.clients.llm_client import LlmRateLimitError
 from app.db.conversations import (
     create_conversation,
     list_conversations,
+    update_conversation_title,
 )
 from app.db.pending_confirmations import (
     PendingConfirmationUnavailableError,
@@ -175,3 +176,5 @@ async def reject_confirmation_endpoint(
             detail="El agente no pudo completar la respuesta",
         ) from exc
     return result
+
+

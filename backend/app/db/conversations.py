@@ -113,3 +113,31 @@ def touch_conversation(*, user_id: str, conversation_id: str) -> dict:
         )
 
     return result.data[0]
+
+
+def update_conversation_title(
+    *,
+    user_id: str,
+    conversation_id: str,
+    title: str,
+) -> dict:
+    try:
+        result = (
+            get_supabase_client()
+            .table("conversations")
+            .update({"title": title})
+            .eq("id", conversation_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except APIError as exc:
+        raise ConversationUpdateError(
+            "No se pudo actualizar la conversación"
+        ) from exc
+
+    if not result.data or len(result.data) != 1:
+        raise ConversationUpdateError(
+            "No se pudo actualizar la conversación"
+        )
+
+    return result.data[0]
