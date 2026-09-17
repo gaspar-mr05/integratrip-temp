@@ -1,7 +1,6 @@
 import type { ConversationSummary } from '../types'
 import { ChatIcon } from './icons'
 
-
 type ConversationListItemProps = {
   conversation: ConversationSummary
   isActive: boolean

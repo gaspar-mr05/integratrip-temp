@@ -1,4 +1,12 @@
-export function formatJson(value: string): string {
+export function formatJson(value: unknown): string {
+  if (typeof value !== 'string') {
+    try {
+      return JSON.stringify(value, null, 2) ?? String(value)
+    } catch {
+      return String(value)
+    }
+  }
+
   try {
     return JSON.stringify(JSON.parse(value), null, 2)
   } catch {

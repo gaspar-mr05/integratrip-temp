@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import llm_pb2
 
 from app.clients.llm_client import LlmClient
@@ -41,7 +43,13 @@ async def _generate_turn(
         messages=messages,
         tools=llm_tools,
     )
-    return await client.generate(request)
+    response = await client.generate(request)
+
+    for function_call in response.function_calls:
+        if not function_call.id.strip():
+            function_call.id = str(uuid4())
+
+    return response
 
 
 def _validate_agent_response(response: llm_pb2.GenerateResponse) -> None:

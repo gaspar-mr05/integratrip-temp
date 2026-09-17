@@ -1,18 +1,53 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { getConversation } from '../api'
-import type { ConversationDetail } from '../types'
+import type { Conversation, ConversationDetail } from '../types'
+import { normalizeError } from '../utils'
+import { useConversationActions } from './useConversationActions'
 
-export function useActiveConversation() {
+type UseActiveConversationOptions = {
+  onConversationUpdated?: (conversation: Conversation) => void
+}
+
+export function useActiveConversation({
+  onConversationUpdated,
+}: UseActiveConversationOptions = {}) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null,
   )
-
   const [activeConversation, setActiveConversation] =
     useState<ConversationDetail | null>(null)
-
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const [loadError, setLoadError] = useState<Error | null>(null)
+  const activeConversationIdRef = useRef<string | null>(null)
+  const hasPendingConfirmations =
+    (activeConversation?.pending_confirmations.length ?? 0) > 0
+
+  function handleConversationUpdated(
+    conversationId: string,
+    detail: ConversationDetail,
+  ): void {
+    onConversationUpdated?.(detail.conversation)
+
+    if (activeConversationIdRef.current === conversationId) {
+      setActiveConversation(detail)
+    }
+  }
+
+  const {
+    approveConfirmation,
+    clearError: clearActionError,
+    error: actionError,
+    isSending,
+    pendingUserMessage,
+    processingConfirmationId,
+    rejectConfirmation,
+    sendMessage,
+  } = useConversationActions({
+    conversationId: activeConversationId,
+    hasPendingConfirmations,
+    onConversationUpdated: handleConversationUpdated,
+  })
 
   useEffect(() => {
     if (activeConversationId === null) {
@@ -20,25 +55,26 @@ export function useActiveConversation() {
     }
 
     const conversationId = activeConversationId
-    let isMounted = true
+    let isCurrentRequest = true
 
     async function loadConversation(): Promise<void> {
       try {
         const conversation = await getConversation(conversationId)
 
-        if (isMounted) {
+        if (isCurrentRequest) {
           setActiveConversation(conversation)
         }
       } catch (currentError) {
-        if (isMounted) {
-          setError(
-            currentError instanceof Error
-              ? currentError
-              : new Error('No se pudo cargar la conversación'),
+        if (isCurrentRequest) {
+          setLoadError(
+            normalizeError(
+              currentError,
+              'No se pudo cargar la conversación',
+            ),
           )
         }
       } finally {
-        if (isMounted) {
+        if (isCurrentRequest) {
           setIsLoading(false)
         }
       }
@@ -47,26 +83,34 @@ export function useActiveConversation() {
     void loadConversation()
 
     return () => {
-      isMounted = false
+      isCurrentRequest = false
     }
   }, [activeConversationId])
 
   function selectConversation(conversationId: string): void {
-    if (conversationId === activeConversationId) {
+    if (conversationId === activeConversationIdRef.current) {
       return
     }
 
+    activeConversationIdRef.current = conversationId
     setActiveConversationId(conversationId)
     setActiveConversation(null)
-    setError(null)
+    clearActionError()
+    setLoadError(null)
     setIsLoading(true)
   }
 
   return {
     activeConversation,
     activeConversationId,
-    error,
+    approveConfirmation,
+    error: actionError ?? loadError,
     isLoading,
+    isSending,
+    pendingUserMessage,
+    processingConfirmationId,
+    rejectConfirmation,
     selectConversation,
+    sendMessage,
   }
 }

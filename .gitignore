@@ -12,3 +12,6 @@ AGENTS.md
 CLAUDE.md
 export_codex_chats.py
 backend/tests/
+playwright.config.ts
+/test-results
+frontend/e2e/

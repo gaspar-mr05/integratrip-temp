@@ -9,30 +9,32 @@ type ConversationMessagesProps = {
 
 export function ConversationMessages({ messages }: ConversationMessagesProps) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-      <div className="mx-auto grid w-full max-w-3xl gap-5">
-        {messages.map((message) => {
-          switch (message.role) {
-            case 'user':
-              return <UserMessage key={message.id} text={message.text} />
-            case 'model':
-              return (
-                <AssistantMessage
-                  functionCalls={message.function_calls}
-                  key={message.id}
-                  text={message.text}
-                />
-              )
-            case 'tool':
-              return (
-                <ToolMessage
-                  functionResults={message.function_results}
-                  key={message.id}
-                />
-              )
+    <div className="grid gap-5">
+      {messages.map((message) => {
+        switch (message.role) {
+          case 'user':
+            return <UserMessage key={message.id} text={message.text} />
+          case 'model':
+            return (
+              <AssistantMessage
+                functionCalls={message.function_calls}
+                key={message.id}
+                text={message.text}
+              />
+            )
+          case 'tool':
+            return (
+              <ToolMessage
+                functionResults={message.function_results}
+                key={message.id}
+              />
+            )
+          default: {
+            const unexpectedRole: never = message.role
+            return unexpectedRole
           }
-        })}
-      </div>
+        }
+      })}
     </div>
   )
 }

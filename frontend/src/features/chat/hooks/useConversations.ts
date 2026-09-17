@@ -5,6 +5,7 @@ import {
   listConversations,
 } from '../api'
 import type { Conversation, ConversationSummary } from '../types'
+import { normalizeError } from '../utils'
 
 export function useConversations() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
@@ -25,9 +26,10 @@ export function useConversations() {
       } catch (currentError) {
         if (isMounted) {
           setError(
-            currentError instanceof Error
-              ? currentError
-              : new Error('No se pudieron cargar las conversaciones'),
+            normalizeError(
+              currentError,
+              'No se pudieron cargar las conversaciones',
+            ),
           )
         }
       } finally {
@@ -57,14 +59,21 @@ export function useConversations() {
       return createdConversation
     } catch (currentError) {
       setError(
-        currentError instanceof Error
-          ? currentError
-          : new Error('No se pudo crear la conversación'),
+        normalizeError(currentError, 'No se pudo crear la conversación'),
       )
       return null
     } finally {
       setIsCreating(false)
     }
+  }
+
+  function updateConversationSummary(conversation: Conversation): void {
+    setConversations((currentConversations) => [
+      conversation,
+      ...currentConversations.filter(
+        (currentConversation) => currentConversation.id !== conversation.id,
+      ),
+    ])
   }
 
   return {
@@ -73,5 +82,6 @@ export function useConversations() {
     error,
     isCreating,
     isLoading,
+    updateConversationSummary,
   }
 }
