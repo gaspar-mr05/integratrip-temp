@@ -3,6 +3,7 @@ import {
   ChatEmptyState,
   ChatHeader,
   ChatSidebar,
+  ConversationMessages,
   MessageComposer,
 } from '../components'
 import { useActiveConversation, useConversations } from '../hooks'
@@ -64,6 +65,8 @@ export function ChatPage() {
             <Skeleton className="h-20" />
             <Skeleton className="h-28" />
           </div>
+        ) : activeConversation && activeConversation.messages.length > 0 ? (
+          <ConversationMessages messages={activeConversation.messages} />
         ) : (
           <ChatEmptyState />
         )}
