@@ -4,6 +4,8 @@ from postgrest.exceptions import APIError
 
 from app.clients.supabase_client import get_supabase_client
 
+DEFAULT_CONVERSATION_TITLE = "Nueva conversación"
+
 
 class ConversationCreateError(Exception):
     pass
@@ -24,7 +26,7 @@ class ConversationUpdateError(Exception):
 def create_conversation(
     *,
     user_id: str,
-    title: str = "Nueva conversación",
+    title: str = DEFAULT_CONVERSATION_TITLE,
 ) -> dict:
     try:
         result = (

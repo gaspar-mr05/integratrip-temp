@@ -1,6 +1,11 @@
 import llm_pb2
 
-from app.db.conversations import get_conversation, touch_conversation
+from app.db.conversations import (
+    DEFAULT_CONVERSATION_TITLE,
+    get_conversation,
+    touch_conversation,
+    update_conversation_title,
+)
 from app.db.messages import insert_messages, list_messages
 from app.db.pending_confirmations import insert_pending_confirmations
 from app.services.agent import (
@@ -27,6 +32,9 @@ class PendingConfirmationMessageNotFoundError(Exception):
     pass
 
 
+MAX_CONVERSATION_TITLE_LENGTH = 60
+
+
 def load_conversation_history(
     user_id: str,
     conversation_id: str,
@@ -49,16 +57,24 @@ def _validate_user_text(user_text: str) -> None:
         raise EmptyUserTextError("El texto del usuario no puede estar vacío")
 
 
+def _build_conversation_title(user_text: str) -> str:
+    normalized_text = " ".join(user_text.split())
+    if len(normalized_text) <= MAX_CONVERSATION_TITLE_LENGTH:
+        return normalized_text
+
+    return f"{normalized_text[: MAX_CONVERSATION_TITLE_LENGTH - 1].rstrip()}…"
+
+
 def _load_history(
     user_id: str,
     conversation_id: str,
-) -> tuple[list[dict], list[llm_pb2.Message]]:
-    _, rows = load_conversation_history(
+) -> tuple[dict, list[dict], list[llm_pb2.Message]]:
+    conversation, rows = load_conversation_history(
         user_id,
         conversation_id,
     )
     history = [transform_dict_to_message(row) for row in rows]
-    return rows, history
+    return conversation, rows, history
 
 
 def _build_generated_rows(
@@ -170,7 +186,7 @@ async def run_conversation_turn(
     user_text: str,
 ) -> dict:
     _validate_user_text(user_text)
-    stored_rows, history = _load_history(user_id, conversation_id)
+    conversation, stored_rows, history = _load_history(user_id, conversation_id)
     agent_result = await run_agent(user_id, history, user_text)
 
     inserted_confirmations = _persist_agent_result(
@@ -179,6 +195,16 @@ async def run_conversation_turn(
         stored_rows,
         agent_result,
     )
+
+    if (
+        not stored_rows
+        and conversation.get("title") == DEFAULT_CONVERSATION_TITLE
+    ):
+        update_conversation_title(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            title=_build_conversation_title(user_text),
+        )
 
     return {
         "text": agent_result.generated_messages[-1].text,
@@ -190,7 +216,7 @@ async def resume_conversation(
     user_id: str,
     conversation_id: str,
 ) -> dict:
-    stored_rows, history = _load_history(
+    _, stored_rows, history = _load_history(
         user_id,
         conversation_id,
     )

@@ -1,6 +1,11 @@
 import type { ConversationSummary } from '../types'
 import { ChatIcon } from './icons'
 
+const lastActivityFormatter = new Intl.DateTimeFormat('es-CL', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
+
 type ConversationListItemProps = {
   conversation: ConversationSummary
   isActive: boolean
@@ -12,6 +17,11 @@ export function ConversationListItem({
   isActive,
   onSelectConversation,
 }: ConversationListItemProps) {
+  const updatedAt = new Date(conversation.updated_at)
+  const lastActivity = Number.isNaN(updatedAt.getTime())
+    ? null
+    : lastActivityFormatter.format(updatedAt)
+
   return (
     <button
       aria-label={conversation.title}
@@ -20,8 +30,17 @@ export function ConversationListItem({
       onClick={() => onSelectConversation(conversation.id)}
       type="button"
     >
-      <ChatIcon />
-      <span className="hidden truncate sm:block">{conversation.title}</span>
+      <span className="shrink-0">
+        <ChatIcon />
+      </span>
+      <span className="hidden min-w-0 sm:block">
+        <span className="block truncate">{conversation.title}</span>
+        {lastActivity ? (
+          <span className="block truncate text-xs text-slate-400">
+            {lastActivity}
+          </span>
+        ) : null}
+      </span>
     </button>
   )
 }

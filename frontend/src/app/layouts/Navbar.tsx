@@ -48,7 +48,7 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
             <>
               <div className="hidden items-center gap-2 sm:flex sm:gap-3">
                 <span className="hidden max-w-52 truncate text-sm text-slate-500 md:block">
-                  {user.user_id}
+                  {user.email ?? 'Correo no disponible'}
                 </span>
                 <NavLink
                   className={({ isActive }) =>
@@ -74,7 +74,7 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
                   }
                   to="/config"
                 >
-                  Configuración
+                  Configuración de MCPs
                 </NavLink>
                 <Button onClick={handleLogout} variant="secondary">
                   Logout

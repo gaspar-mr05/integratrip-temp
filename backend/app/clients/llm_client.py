@@ -4,6 +4,7 @@ import grpc
 
 import llm_pb2
 import llm_pb2_grpc
+
 from app.config import Settings, get_settings
 
 
@@ -20,6 +21,10 @@ class LlmAuthenticationError(LlmClientError):
 
 
 class LlmInvalidRequestError(LlmClientError):
+    pass
+
+
+class LlmEmptyResponseError(LlmClientError):
     pass
 
 
@@ -45,6 +50,11 @@ def _raise_client_error(exc: grpc.aio.AioRpcError) -> NoReturn:
     if code == grpc.StatusCode.INVALID_ARGUMENT:
         raise LlmInvalidRequestError(
             "El servicio LLM rechazó la solicitud enviada"
+        ) from exc
+    details = (exc.details() or "").lower()
+    if code == grpc.StatusCode.INTERNAL and "empty response" in details:
+        raise LlmEmptyResponseError(
+            "El proveedor del modelo devolvió una respuesta vacía"
         ) from exc
 
     raise LlmClientError("No se pudo obtener una respuesta del servicio LLM") from exc

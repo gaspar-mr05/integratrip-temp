@@ -63,7 +63,8 @@ export function ActiveConversationPanel({
     conversation === null ||
     (messages.length === 0 &&
       pendingConfirmations.length === 0 &&
-      pendingUserMessage === null)
+      pendingUserMessage === null &&
+      error === null)
   ) {
     return <ChatEmptyState />
   }

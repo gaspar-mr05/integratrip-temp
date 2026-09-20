@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.clients.llm_client import LlmRateLimitError
+from app.clients.llm_client import LlmClientError, LlmRateLimitError
 from app.db.conversations import (
     create_conversation,
     list_conversations,
@@ -12,7 +12,7 @@ from app.db.pending_confirmations import (
 )
 from app.schemas.conversations import SendMessageRequest
 from app.security.session import get_current_user_id
-from app.services.agent import AgentTurnLimitError
+from app.services.agent import AgentTurnLimitError, InvalidAgentResponseError
 from app.services.chat import (
     ConversationNotFoundError,
     EmptyUserTextError,
@@ -26,6 +26,19 @@ router = APIRouter(
     prefix="/conversations",
     tags=["conversations"],
 )
+
+
+def _llm_http_exception(exc: LlmClientError) -> HTTPException:
+    if isinstance(exc, LlmRateLimitError):
+        return HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Límite del servicio LLM: se alcanzó el máximo de solicitudes",
+        )
+
+    return HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=f"Error del servicio LLM: {exc}. Intenta nuevamente",
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -89,10 +102,12 @@ async def create_message_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="La conversación no existe o no pertenece al usuario",
         ) from exc
-    except LlmRateLimitError as exc:
+    except LlmClientError as exc:
+        raise _llm_http_exception(exc) from exc
+    except InvalidAgentResponseError as exc:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Se alcanzó el límite de solicitudes al servicio LLM",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error de respuesta del agente: {exc}",
         ) from exc
     except AgentTurnLimitError as exc:
         raise HTTPException(
@@ -127,10 +142,12 @@ async def approve_confirmation_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="La confirmación ya fue procesada o no está disponible",
         ) from exc
-    except LlmRateLimitError as exc:
+    except LlmClientError as exc:
+        raise _llm_http_exception(exc) from exc
+    except InvalidAgentResponseError as exc:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Se alcanzó el límite de solicitudes al servicio LLM",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error de respuesta del agente: {exc}",
         ) from exc
     except AgentTurnLimitError as exc:
         raise HTTPException(
@@ -165,10 +182,12 @@ async def reject_confirmation_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="La confirmación ya fue procesada o no está disponible",
         ) from exc
-    except LlmRateLimitError as exc:
+    except LlmClientError as exc:
+        raise _llm_http_exception(exc) from exc
+    except InvalidAgentResponseError as exc:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Se alcanzó el límite de solicitudes al servicio LLM",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error de respuesta del agente: {exc}",
         ) from exc
     except AgentTurnLimitError as exc:
         raise HTTPException(
@@ -176,5 +195,4 @@ async def reject_confirmation_endpoint(
             detail="El agente no pudo completar la respuesta",
         ) from exc
     return result
-
 

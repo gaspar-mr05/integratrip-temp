@@ -8,6 +8,8 @@ function isCurrentUser(value: unknown): value is CurrentUser {
   return (
     typeof value === 'object' &&
     value !== null &&
+    'email' in value &&
+    (typeof value.email === 'string' || value.email === null) &&
     'user_id' in value &&
     typeof value.user_id === 'string'
   )
