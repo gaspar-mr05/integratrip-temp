@@ -7,6 +7,7 @@ from app.db.messages import insert_messages
 from app.db.pending_confirmations import (
     claim_pending_confirmation,
     complete_approved_confirmation,
+    list_pending_confirmations,
     reject_pending_confirmation,
 )
 from app.services.agent import execute_approved_tool
@@ -47,6 +48,25 @@ def _build_rejection_message(
     return transform_message_to_dict(tool_message, sequence_number)
 
 
+async def _resume_when_confirmations_are_resolved(
+    user_id: str,
+    conversation_id: str,
+) -> dict:
+    pending_confirmations = list_pending_confirmations(
+        conversation_id=conversation_id,
+    )
+    if pending_confirmations:
+        return {
+            "text": "",
+            "pending_confirmations": pending_confirmations,
+        }
+
+    return await resume_conversation(
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
+
+
 async def reject_confirmation(
     user_id: str,
     conversation_id: str,
@@ -73,9 +93,9 @@ async def reject_confirmation(
         conversation_id=conversation_id,
     )
 
-    return await resume_conversation(
-        user_id=user_id,
-        conversation_id=conversation_id,
+    return await _resume_when_confirmations_are_resolved(
+        user_id,
+        conversation_id,
     )
 
 
@@ -123,7 +143,7 @@ async def approve_confirmation(
         conversation_id=conversation_id,
     )
 
-    return await resume_conversation(
-        user_id=user_id,
-        conversation_id=conversation_id,
+    return await _resume_when_confirmations_are_resolved(
+        user_id,
+        conversation_id,
     )

@@ -1,3 +1,5 @@
+import Markdown from 'react-markdown'
+
 import type { FunctionCall } from '../types'
 import { formatJson } from '../utils'
 
@@ -13,9 +15,9 @@ export function AssistantMessage({
   return (
     <article className="grid justify-items-start gap-3" aria-label="Respuesta del asistente">
       {text.trim() ? (
-        <p className="m-0 max-w-[90%] whitespace-pre-wrap break-words rounded-xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-800 shadow-sm sm:max-w-[80%]">
-          {text}
-        </p>
+        <div className="max-w-[90%] break-words rounded-xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-800 shadow-sm sm:max-w-[80%] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:py-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-slate-900 [&_pre]:p-3 [&_pre]:text-slate-100 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
+          <Markdown skipHtml>{text}</Markdown>
+        </div>
       ) : null}
 
       {functionCalls.map((functionCall) => (
