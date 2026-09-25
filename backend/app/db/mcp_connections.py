@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.db.supabase_client import get_supabase_client
+from app.clients.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -57,3 +57,19 @@ def get_mcp_connection(user_id: str, mcp_server_id: str) -> dict | None:
         .execute()
     )
     return result.data[0] if result.data else None
+
+
+def list_active_mcp_servers(user_id: str) -> list[dict]:
+    supabase = get_supabase_client()
+    result = (
+        supabase.table("mcp_connections")
+        .select("mcp_server:mcp_servers(id,name,auth_type)")
+        .eq("user_id", user_id)
+        .eq("status", "active")
+        .execute()
+    )
+    return [
+        row["mcp_server"]
+        for row in result.data
+        if row.get("mcp_server") is not None
+    ]

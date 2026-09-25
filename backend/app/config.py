@@ -32,6 +32,12 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str
 
+    LLM_GRPC_TARGET: str = Field(default="dns:///iic3103-tarea2-llm-z2fqxmm2ja-uc.a.run.app:443")
+    LLM_GRPC_TLS: bool = Field(default=True)
+    LLM_GRPC_TIMEOUT_SECONDS: float = Field(default=30, gt=0)
+    LLM_STUDENT_EMAIL: str
+    LLM_STUDENT_ID: str
+
     @property
     def login_redirect_uri(self) -> str:
         return f"{self.PUBLIC_API_URL.rstrip('/')}/auth/callback"

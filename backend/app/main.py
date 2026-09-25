@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, mcp, oauth_client_metadata
+from app.routers import auth, conversations, mcp, oauth_client_metadata
 
 app = FastAPI()
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(mcp.router)
 app.include_router(oauth_client_metadata.router)
+app.include_router(conversations.router)
 
 
 @app.get("/health")

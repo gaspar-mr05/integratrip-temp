@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
-from app.db.users import UserUpsertError
+from app.db.users import UserReadError, UserUpsertError, get_user
 from app.security.session import (
     SESSION_COOKIE_NAME,
     clear_session_cookie,
@@ -75,7 +75,21 @@ def callback(
 
 @router.get("/me")
 def me(user_id: str = Depends(get_current_user_id)):
-    return {"user_id": user_id}
+    try:
+        user = get_user(user_id=user_id)
+    except UserReadError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo obtener el usuario autenticado",
+        ) from exc
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="El usuario de la sesión no existe",
+        )
+
+    return {"user_id": user["id"], "email": user.get("email")}
 
 
 @router.get("/logout")

@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
 from app.security.session import get_current_user_id
-from app.services.mcp_connection_service import (
+from app.services.mcp.connection import (
     ConnectionFlowError,
     InvalidConnectionStateError,
     McpNotConnectedError,
@@ -12,7 +12,7 @@ from app.services.mcp_connection_service import (
     get_mcp_connection_status,
     start_mcp_connection_flow,
 )
-from app.services.mcp_tools_service import (
+from app.services.mcp.tools import (
     McpProtocolError,
     McpToolExecutionError,
     call_server_tool,

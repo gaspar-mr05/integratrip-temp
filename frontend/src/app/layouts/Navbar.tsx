@@ -48,7 +48,7 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
             <>
               <div className="hidden items-center gap-2 sm:flex sm:gap-3">
                 <span className="hidden max-w-52 truncate text-sm text-slate-500 md:block">
-                  {user.user_id}
+                  {user.email ?? 'Correo no disponible'}
                 </span>
                 <NavLink
                   className={({ isActive }) =>
@@ -59,9 +59,22 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
                         : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-950',
                     ].join(' ')
                   }
-                  to="/mcp"
+                  to="/chat"
                 >
-                  MCP
+                  Chat
+                </NavLink>
+                <NavLink
+                  className={({ isActive }) =>
+                    [
+                      'rounded-md px-3 py-2 text-sm font-medium no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600',
+                      isActive
+                        ? 'bg-slate-950 text-white'
+                        : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-950',
+                    ].join(' ')
+                  }
+                  to="/config"
+                >
+                  Configuración de MCPs
                 </NavLink>
                 <Button onClick={handleLogout} variant="secondary">
                   Logout
@@ -94,9 +107,23 @@ export function Navbar({ isLoadingUser, user }: NavbarProps) {
                       ].join(' ')
                     }
                     onClick={() => setIsMenuOpen(false)}
-                    to="/mcp"
+                    to="/chat"
                   >
-                    MCP
+                    Chat
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) =>
+                      [
+                        'rounded-md px-3 py-2 text-sm font-medium no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600',
+                        isActive
+                          ? 'bg-slate-950 text-white'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+                      ].join(' ')
+                    }
+                    onClick={() => setIsMenuOpen(false)}
+                    to="/config"
+                  >
+                    Configuración
                   </NavLink>
                   <button
                     className="cursor-pointer rounded-md border-0 bg-transparent px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
