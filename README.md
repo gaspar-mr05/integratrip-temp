@@ -39,6 +39,8 @@ Para crear el dataset público y su índice con `gte-multilingual-base`:
 
 ```bash
 export NOMIC_API_KEY="..."
-export NOMIC_DATASET_IDENTIFIER="organizacion/integratrip-magazines"
+export NOMIC_DATASET_IDENTIFIER="gasparmagnar/integratrip-magazines"
 python -m scripts.rag.upload_nomic
 ```
+
+Dataset público: [gasparmagnar/integratrip-magazines](https://atlas.nomic.ai/data/gasparmagnar/integratrip-magazines/map).
