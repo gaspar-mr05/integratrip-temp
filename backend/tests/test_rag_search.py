@@ -1,5 +1,7 @@
 import json
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from app.services.rag.catalog import RAG_TOOL_NAME, build_rag_catalog_tool
 from app.services.rag.search import (
@@ -7,6 +9,8 @@ from app.services.rag.search import (
     _build_fragments,
     _normalize_queries,
     _rank_neighbor_ids,
+    _search_sync,
+    _vector_search,
 )
 
 
@@ -71,6 +75,71 @@ class RagSearchTests(unittest.TestCase):
     def test_rejects_missing_neighbor_data(self) -> None:
         with self.assertRaises(RagSearchError):
             _build_fragments([], ["missing"])
+
+    def test_vector_search_sends_embeddings_as_an_array(self) -> None:
+        response = MagicMock()
+        response.json.return_value = {
+            "neighbors": [["chunk-1"]],
+            "distances": [[0.1]],
+        }
+        projection = SimpleNamespace(
+            atlas_index_id="index-1",
+            dataset=SimpleNamespace(
+                atlas_api_path="https://api-atlas.nomic.ai",
+                header={"Authorization": "Bearer hidden"},
+            ),
+        )
+
+        with patch(
+            "app.services.rag.search.requests.post", return_value=response
+        ) as post:
+            neighbors, distances = _vector_search(projection, [[0.1, 0.2]])
+
+        self.assertEqual(neighbors, [["chunk-1"]])
+        self.assertEqual(distances, [[0.1]])
+        response.raise_for_status.assert_called_once_with()
+        post.assert_called_once_with(
+            "https://api-atlas.nomic.ai/v1/project/data/get/nearest_neighbors/by_embedding",
+            headers={"Authorization": "Bearer hidden"},
+            json={
+                "atlas_index_id": "index-1",
+                "queries": [[0.1, 0.2]],
+                "k": 5,
+            },
+            timeout=30,
+        )
+
+    def test_search_fetches_ranked_fragments(self) -> None:
+        row = {
+            "id": "chunk-1",
+            "text": "Una playa tranquila",
+            "source": "traveling69.pdf",
+            "issue": 69,
+            "headings": "Playas",
+            "pages": "4",
+        }
+        projection = SimpleNamespace()
+        dataset = MagicMock()
+        dataset.get_data.return_value = [row]
+
+        with (
+            patch(
+                "app.services.rag.search._nomic_resources",
+                return_value=(dataset, projection),
+            ),
+            patch(
+                "nomic.embed.text",
+                return_value={"embeddings": [[0.1, 0.2]]},
+            ),
+            patch(
+                "app.services.rag.search._vector_search",
+                return_value=([["chunk-1"]], [[0.1]]),
+            ),
+        ):
+            fragments = _search_sync(["playas tranquilas"])
+
+        self.assertEqual(fragments[0]["id"], "chunk-1")
+        dataset.get_data.assert_called_once_with(ids=["chunk-1"])
 
 
 if __name__ == "__main__":

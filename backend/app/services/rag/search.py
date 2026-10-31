@@ -2,7 +2,8 @@ import asyncio
 import logging
 from functools import lru_cache
 
-import numpy as np
+import requests
+
 from app.config import get_settings
 
 NOMIC_EMBEDDING_MODEL = "gte-multilingual-base"
@@ -10,6 +11,7 @@ MAX_QUERIES = 3
 NEIGHBORS_PER_QUERY = 5
 MAX_FRAGMENTS = 4
 MAX_FRAGMENT_CHARACTERS = 2000
+NOMIC_REQUEST_TIMEOUT_SECONDS = 30
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +34,7 @@ def _normalize_queries(value: object) -> list[str]:
             raise TypeError("Cada consulta debe ser texto")
         query = " ".join(query.split())
         if not query or len(query) > 300:
-            raise ValueError(
-                "Cada consulta debe contener entre 1 y 300 caracteres"
-            )
+            raise ValueError("Cada consulta debe contener entre 1 y 300 caracteres")
         if query not in normalized:
             normalized.append(query)
     return normalized
@@ -121,15 +121,37 @@ def _build_fragments(rows: object, ranked_ids: list[str]) -> list[dict]:
     return fragments
 
 
+def _vector_search(projection, embeddings: list) -> tuple[object, object]:
+    dataset = projection.dataset
+    response = requests.post(
+        f"{dataset.atlas_api_path}/v1/project/data/get/nearest_neighbors/by_embedding",
+        headers=dataset.header,
+        json={
+            "atlas_index_id": projection.atlas_index_id,
+            "queries": embeddings,
+            "k": NEIGHBORS_PER_QUERY,
+        },
+        timeout=NOMIC_REQUEST_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise RagSearchError("Nomic devolvió una respuesta inválida")
+
+    neighbors = payload.get("neighbors")
+    distances = payload.get("distances")
+    if neighbors is None or distances is None:
+        raise RagSearchError("Nomic devolvió una respuesta incompleta")
+    return neighbors, distances
+
+
 @lru_cache
 def _nomic_resources():
     from nomic import AtlasDataset, login
 
     settings = get_settings()
     if not settings.NOMIC_API_KEY or not settings.NOMIC_DATASET_IDENTIFIER:
-        raise RagConfigurationError(
-            "La búsqueda de revistas no está configurada"
-        )
+        raise RagConfigurationError("La búsqueda de revistas no está configurada")
 
     login(settings.NOMIC_API_KEY)
     dataset = AtlasDataset(identifier=settings.NOMIC_DATASET_IDENTIFIER)
@@ -150,10 +172,7 @@ def _search_sync(queries: list[str]) -> list[dict]:
         if not isinstance(embeddings, list) or len(embeddings) != len(queries):
             raise RagSearchError("Nomic devolvió embeddings inválidos")
 
-        neighbors, distances = projection.vector_search(
-            queries=np.asarray(embeddings, dtype=float),
-            k=NEIGHBORS_PER_QUERY,
-        )
+        neighbors, distances = _vector_search(projection, embeddings)
         ranked_ids = _rank_neighbor_ids(neighbors, distances)
         rows = dataset.get_data(ids=ranked_ids)
         return _build_fragments(rows, ranked_ids)
@@ -161,9 +180,7 @@ def _search_sync(queries: list[str]) -> list[dict]:
         raise
     except Exception as exc:
         logger.exception("Falló la búsqueda de revistas en Nomic")
-        raise RagSearchError(
-            "No se pudo completar la búsqueda de revistas"
-        ) from exc
+        raise RagSearchError("No se pudo completar la búsqueda de revistas") from exc
 
 
 async def search_magazines(arguments: dict) -> dict:
