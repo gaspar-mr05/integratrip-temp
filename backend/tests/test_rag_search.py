@@ -7,6 +7,7 @@ from app.services.rag.catalog import RAG_TOOL_NAME, build_rag_catalog_tool
 from app.services.rag.search import (
     RagSearchError,
     _build_fragments,
+    _nomic_resources,
     _normalize_queries,
     _rank_neighbor_ids,
     _search_sync,
@@ -107,6 +108,30 @@ class RagSearchTests(unittest.TestCase):
                 "k": 5,
             },
             timeout=30,
+        )
+
+    def test_nomic_resources_strip_configuration_whitespace(self) -> None:
+        settings = SimpleNamespace(
+            NOMIC_API_KEY="  secret-key\n",
+            NOMIC_DATASET_IDENTIFIER=" gasparmagnar/integratrip-magazines\n",
+        )
+        dataset = MagicMock()
+
+        _nomic_resources.cache_clear()
+        try:
+            with (
+                patch("app.services.rag.search.get_settings", return_value=settings),
+                patch("nomic.login") as login,
+                patch("nomic.AtlasDataset", return_value=dataset) as atlas_dataset,
+            ):
+                result = _nomic_resources()
+        finally:
+            _nomic_resources.cache_clear()
+
+        self.assertEqual(result, (dataset, dataset.get_map.return_value))
+        login.assert_called_once_with("secret-key")
+        atlas_dataset.assert_called_once_with(
+            identifier="gasparmagnar/integratrip-magazines"
         )
 
     def test_search_fetches_ranked_fragments(self) -> None:

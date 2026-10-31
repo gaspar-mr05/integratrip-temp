@@ -150,11 +150,17 @@ def _nomic_resources():
     from nomic import AtlasDataset, login
 
     settings = get_settings()
-    if not settings.NOMIC_API_KEY or not settings.NOMIC_DATASET_IDENTIFIER:
+    api_key = settings.NOMIC_API_KEY.strip() if settings.NOMIC_API_KEY else ""
+    dataset_identifier = (
+        settings.NOMIC_DATASET_IDENTIFIER.strip()
+        if settings.NOMIC_DATASET_IDENTIFIER
+        else ""
+    )
+    if not api_key or not dataset_identifier:
         raise RagConfigurationError("La búsqueda de revistas no está configurada")
 
-    login(settings.NOMIC_API_KEY)
-    dataset = AtlasDataset(identifier=settings.NOMIC_DATASET_IDENTIFIER)
+    login(api_key)
+    dataset = AtlasDataset(identifier=dataset_identifier)
     return dataset, dataset.get_map()
 
 
@@ -179,7 +185,10 @@ def _search_sync(queries: list[str]) -> list[dict]:
     except (RagConfigurationError, RagSearchError):
         raise
     except Exception as exc:
-        logger.exception("Falló la búsqueda de revistas en Nomic")
+        logger.error(
+            "Falló la búsqueda de revistas en Nomic (%s)",
+            type(exc).__name__,
+        )
         raise RagSearchError("No se pudo completar la búsqueda de revistas") from exc
 
 
