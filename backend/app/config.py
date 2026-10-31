@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     LLM_STUDENT_EMAIL: str
     LLM_STUDENT_ID: str
 
+    NOMIC_API_KEY: str | None = None
+    NOMIC_DATASET_IDENTIFIER: str | None = None
+
     @property
     def login_redirect_uri(self) -> str:
         return f"{self.PUBLIC_API_URL.rstrip('/')}/auth/callback"

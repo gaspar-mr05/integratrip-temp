@@ -4,14 +4,15 @@ from collections.abc import Iterable
 import llm_pb2
 
 from app.services.agent.models import PendingToolConfirmation
-from app.services.mcp.catalog import build_tool_catalog
-from app.services.mcp.dispatcher import (
+from app.services.agent.dispatcher import (
     InvalidToolArgumentsError,
     UnknownCatalogToolError,
     dispatch_tool_call,
 )
+from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.models import CatalogTool
 from app.services.mcp.tools import McpProtocolError, McpToolExecutionError
+from app.services.rag import RagConfigurationError, RagSearchError
 
 
 CONFIRMATION_REQUIRED_MCP_TOOLS = {
@@ -80,6 +81,8 @@ async def _dispatch_function_call(
     except (
         InvalidToolArgumentsError,
         McpToolExecutionError,
+        RagConfigurationError,
+        RagSearchError,
         UnknownCatalogToolError,
     ) as exc:
         return _build_error_result(function_call, str(exc))

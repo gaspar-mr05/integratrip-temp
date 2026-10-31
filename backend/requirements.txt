@@ -9,4 +9,4 @@ requests
 mcp
 grpcio
 grpcio-tools
-
+nomic

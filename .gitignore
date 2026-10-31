@@ -11,7 +11,10 @@ modelos.png
 AGENTS.md
 CLAUDE.md
 export_codex_chats.py
-backend/tests/
 playwright.config.ts
 /test-results
+backend/tests/*
+!backend/tests/test_rag_*.py
+backend/data/magazines/raw/*.pdf
+backend/data/magazines/raw/*.part
 frontend/e2e/

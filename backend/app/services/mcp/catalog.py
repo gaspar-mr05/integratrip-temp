@@ -4,6 +4,7 @@ import re
 from app.db.mcp_connections import list_active_mcp_servers
 from app.services.mcp.models import CatalogTool
 from app.services.mcp.tools import list_server_tools
+from app.services.rag.catalog import build_rag_catalog_tool
 
 _LLM_TOOL_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
@@ -78,8 +79,9 @@ def _build_catalog_tool(mcp_server: dict, mcp_tool: dict) -> CatalogTool:
 
 
 async def build_tool_catalog(user_id: str) -> list[CatalogTool]:
-    catalog_tools: list[CatalogTool] = []
-    used_names: set[str] = set()
+    rag_tool = build_rag_catalog_tool()
+    catalog_tools = [rag_tool]
+    used_names = {rag_tool.llm_name}
 
     for mcp_server in list_active_mcp_servers(user_id):
         server_name = _require_non_empty_string(
