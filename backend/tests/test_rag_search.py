@@ -1,3 +1,4 @@
+import asyncio
 import json
 import unittest
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from app.services.rag.search import (
     _rank_neighbor_ids,
     _search_sync,
     _vector_search,
+    search_magazines,
 )
 
 
@@ -23,6 +25,21 @@ class RagSearchTests(unittest.TestCase):
         self.assertEqual(tool.llm_name, RAG_TOOL_NAME)
         self.assertEqual(tool.source, "local")
         self.assertEqual(schema["properties"]["queries"]["maxItems"], 3)
+        self.assertIn("otras tools", tool.description)
+        self.assertIn("forma independiente", tool.description)
+        self.assertIn("(Traveling {issue}, p. {pages})", tool.description)
+
+    def test_answer_policy_allows_other_tool_results(self) -> None:
+        with patch("app.services.rag.search._search_sync", return_value=[]):
+            result = asyncio.run(search_magazines({"queries": ["playas tranquilas"]}))
+
+        self.assertIn("otras tools", result["answer_policy"])
+        self.assertIn("no invalida fragmentos útiles", result["answer_policy"])
+        self.assertIn("(Traveling {issue}, p. {pages})", result["answer_policy"])
+        self.assertIn(
+            "No encontré información suficiente en las revistas proporcionadas.",
+            result["answer_policy"],
+        )
 
     def test_normalizes_and_deduplicates_queries(self) -> None:
         queries = _normalize_queries(

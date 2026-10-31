@@ -202,8 +202,15 @@ async def search_magazines(arguments: dict) -> dict:
         "queries": queries,
         "fragments": fragments,
         "answer_policy": (
-            "Responde únicamente con información respaldada por estos fragmentos "
-            "y cita revista y páginas. Si no son suficientes, responde exactamente: "
-            "No encontré información suficiente en las revistas proporcionadas."
+            "Para las afirmaciones obtenidas de las revistas, usa únicamente estos "
+            "fragmentos. Después de cada recomendación basada en ellos, incluye "
+            "siempre una cita con el formato (Traveling {issue}, p. {pages}). Puedes "
+            "usar resultados de otras tools para responder otras partes de la "
+            "pregunta. Evalúa cada parte de "
+            "forma independiente: un error de otra tool no invalida fragmentos útiles "
+            "de las revistas. Usa la frase de rechazo solo si ningún fragmento permite "
+            "responder la parte solicitada a las revistas; en ese caso, responde "
+            "exactamente: No encontré información suficiente en las revistas "
+            "proporcionadas."
         ),
     }
