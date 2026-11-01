@@ -9,7 +9,7 @@ from app.services.agent.service import (
     _enforce_rag_rejection,
 )
 from app.services.agent.tool_calls import (
-    _normalize_catalog_tool_result,
+    _normalize_time_fields,
     _normalize_tool_result,
     build_tool_exchange,
 )
@@ -141,59 +141,42 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
             {"value": "structured"},
         )
 
-    def test_normalizes_negative_minutes_from_flight_search(self) -> None:
-        catalog = [
-            CatalogTool(
-                llm_name="pre_search_flights",
-                description="Busca vuelos",
-                input_schema_json="{}",
-                server_name="andes-air",
-                mcp_tool_name="search_flights",
-            )
-        ]
+    def test_normalizes_time_fields_in_nested_tool_results(self) -> None:
         result = {
+            "depart": "14:-16",
+            "arrive": "01:-15",
             "flights": [
                 {"depart": "17:-55", "arrive": "05:-43"},
                 {"depart": "07:-3", "arrive": "19:38"},
-            ]
+            ],
+            "status": "confirmed",
         }
 
-        normalized = _normalize_catalog_tool_result(
-            catalog,
-            "pre_search_flights",
-            result,
-        )
+        normalized = _normalize_time_fields(result)
 
         self.assertEqual(
             normalized,
             {
+                "depart": "14:16",
+                "arrive": "01:15",
                 "flights": [
                     {"depart": "17:55", "arrive": "05:43"},
                     {"depart": "07:03", "arrive": "19:38"},
-                ]
+                ],
+                "status": "confirmed",
             },
         )
+        self.assertEqual(result["depart"], "14:-16")
         self.assertEqual(result["flights"][0]["depart"], "17:-55")
 
-    def test_does_not_normalize_times_from_other_tools(self) -> None:
-        catalog = [
-            CatalogTool(
-                llm_name="pre_search_hotels",
-                description="Busca hoteles",
-                input_schema_json="{}",
-                server_name="andes-hotels",
-                mcp_tool_name="search_hotels",
-            )
-        ]
-        result = {"flights": [{"depart": "17:-55"}]}
+    def test_preserves_valid_and_non_time_values(self) -> None:
+        result = {
+            "depart": "tomorrow",
+            "arrive": "08:30",
+            "description": "Salida 17:-55",
+        }
 
-        normalized = _normalize_catalog_tool_result(
-            catalog,
-            "pre_search_hotels",
-            result,
-        )
-
-        self.assertIs(normalized, result)
+        self.assertEqual(_normalize_time_fields(result), result)
 
     def test_enforces_exact_rejection_in_combined_response(self) -> None:
         messages = [
