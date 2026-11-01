@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import re
+import unicodedata
 from functools import lru_cache
 
 import requests
 
 from app.config import get_settings
+from app.services.rag.catalog import build_answer_policy
 
 NOMIC_EMBEDDING_MODEL = "gte-multilingual-base"
 MAX_QUERIES = 3
@@ -15,6 +18,13 @@ NOMIC_REQUEST_TIMEOUT_SECONDS = 30
 
 logger = logging.getLogger(__name__)
 
+_LOCATION_PATTERN = re.compile(
+    r"\b(?:en|del|de la|de los|de las|de)\s+"
+    r"(?:el\s+|la\s+|los\s+|las\s+)?"
+    r"([A-ZÁÉÍÓÚÜÑ][\wÁÉÍÓÚÜÑáéíóúüñ-]*"
+    r"(?:\s+(?:de|del|la|las|los|y|[A-ZÁÉÍÓÚÜÑ][\wÁÉÍÓÚÜÑáéíóúüñ-]*))*)"
+)
+
 
 class RagConfigurationError(RuntimeError):
     pass
@@ -22,6 +32,54 @@ class RagConfigurationError(RuntimeError):
 
 class RagSearchError(RuntimeError):
     pass
+
+
+def _normalize_for_matching(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value)
+    without_accents = "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )
+    return " ".join(
+        without_accents.casefold().split()
+    )
+
+
+def _extract_location_anchors(queries: list[str]) -> list[str]:
+    anchors: list[str] = []
+    for query in queries:
+        for match in _LOCATION_PATTERN.finditer(query):
+            anchor = _normalize_for_matching(match.group(1))
+            if anchor not in anchors:
+                anchors.append(anchor)
+    return anchors
+
+
+def _filter_fragments_by_location(
+    fragments: list[dict],
+    queries: list[str],
+) -> list[dict]:
+    anchors = _extract_location_anchors(queries)
+    if not anchors:
+        return fragments
+
+    filtered: list[dict] = []
+    for fragment in fragments:
+        searchable_text = _normalize_for_matching(
+            f"{fragment['headings']} {fragment['text']}"
+        )
+        if any(anchor in searchable_text for anchor in anchors):
+            filtered.append(fragment)
+    return filtered
+
+
+def _response_mode(queries: list[str], fragments: list[dict]) -> str:
+    if not fragments:
+        return "reject"
+    if _extract_location_anchors(queries):
+        return "answer"
+    return "evaluate"
 
 
 def _normalize_queries(value: object) -> list[str]:
@@ -181,7 +239,8 @@ def _search_sync(queries: list[str]) -> list[dict]:
         neighbors, distances = _vector_search(projection, embeddings)
         ranked_ids = _rank_neighbor_ids(neighbors, distances)
         rows = dataset.get_data(ids=ranked_ids)
-        return _build_fragments(rows, ranked_ids)
+        fragments = _build_fragments(rows, ranked_ids)
+        return _filter_fragments_by_location(fragments, queries)
     except (RagConfigurationError, RagSearchError):
         raise
     except Exception as exc:
@@ -198,19 +257,10 @@ async def search_magazines(arguments: dict) -> dict:
 
     queries = _normalize_queries(arguments["queries"])
     fragments = await asyncio.to_thread(_search_sync, queries)
+    response_mode = _response_mode(queries, fragments)
     return {
         "queries": queries,
         "fragments": fragments,
-        "answer_policy": (
-            "Para las afirmaciones obtenidas de las revistas, usa únicamente estos "
-            "fragmentos. Después de cada recomendación basada en ellos, incluye "
-            "siempre una cita con el formato (Traveling {issue}, p. {pages}). Puedes "
-            "usar resultados de otras tools para responder otras partes de la "
-            "pregunta. Evalúa cada parte de "
-            "forma independiente: un error de otra tool no invalida fragmentos útiles "
-            "de las revistas. Usa la frase de rechazo solo si ningún fragmento permite "
-            "responder la parte solicitada a las revistas; en ese caso, responde "
-            "exactamente: No encontré información suficiente en las revistas "
-            "proporcionadas."
-        ),
+        "response_mode": response_mode,
+        "answer_policy": build_answer_policy(response_mode),
     }

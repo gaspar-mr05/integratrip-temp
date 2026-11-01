@@ -4,13 +4,20 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from app.services.rag.catalog import RAG_TOOL_NAME, build_rag_catalog_tool
+from app.services.rag.catalog import (
+    RAG_TOOL_NAME,
+    REJECTION_SENTENCE,
+    build_rag_catalog_tool,
+)
 from app.services.rag.search import (
     RagSearchError,
     _build_fragments,
+    _extract_location_anchors,
+    _filter_fragments_by_location,
     _nomic_resources,
     _normalize_queries,
     _rank_neighbor_ids,
+    _response_mode,
     _search_sync,
     _vector_search,
     search_magazines,
@@ -25,21 +32,105 @@ class RagSearchTests(unittest.TestCase):
         self.assertEqual(tool.llm_name, RAG_TOOL_NAME)
         self.assertEqual(tool.source, "local")
         self.assertEqual(schema["properties"]["queries"]["maxItems"], 3)
+        queries_description = schema["properties"]["queries"]["description"]
+        self.assertIn("una consulta separada", queries_description)
+        self.assertIn("Nunca combines", queries_description)
+        self.assertIn("gastronomía en el Algarve", queries_description)
+        self.assertIn("Repite el destino", tool.description)
         self.assertIn("otras tools", tool.description)
-        self.assertIn("forma independiente", tool.description)
+        self.assertIn("respuesta combinada", tool.description)
         self.assertIn("(Traveling {issue}, p. {pages})", tool.description)
+        self.assertIn("Ignora otros destinos", tool.description)
+        self.assertIn("esta tool no fue ejecutada", tool.description)
 
-    def test_answer_policy_allows_other_tool_results(self) -> None:
+    def test_empty_search_requires_exact_rejection(self) -> None:
         with patch("app.services.rag.search._search_sync", return_value=[]):
             result = asyncio.run(search_magazines({"queries": ["playas tranquilas"]}))
 
+        self.assertEqual(result["response_mode"], "reject")
         self.assertIn("otras tools", result["answer_policy"])
-        self.assertIn("no invalida fragmentos útiles", result["answer_policy"])
+        self.assertIn("respuesta combinada", result["answer_policy"])
         self.assertIn("(Traveling {issue}, p. {pages})", result["answer_policy"])
-        self.assertIn(
-            "No encontré información suficiente en las revistas proporcionadas.",
-            result["answer_policy"],
+        self.assertIn("nunca les cambies el nombre", result["answer_policy"])
+        self.assertIn("mantén intacta esa oración", result["answer_policy"])
+        self.assertIn(REJECTION_SENTENCE, result["answer_policy"])
+        self.assertIn("response_mode=reject", result["answer_policy"])
+
+    def test_validated_destination_fragments_require_an_answer(self) -> None:
+        fragment = {
+            "headings": "La huella verde de Porches",
+            "text": "Porches es un destino del Algarve.",
+        }
+        with patch(
+            "app.services.rag.search._search_sync",
+            return_value=[fragment],
+        ):
+            result = asyncio.run(
+                search_magazines(
+                    {"queries": ["playas y actividades en el Algarve"]}
+                )
+            )
+
+        self.assertEqual(result["response_mode"], "answer")
+        self.assertIn("response_mode=answer", result["answer_policy"])
+        self.assertIn("Está prohibido", result["answer_policy"])
+
+    def test_search_without_location_requires_model_evaluation(self) -> None:
+        fragments = [{"headings": "Playas", "text": "Una playa tranquila."}]
+
+        self.assertEqual(
+            _response_mode(["playas tranquilas"], fragments),
+            "evaluate",
         )
+
+    def test_extracts_explicit_location_anchors(self) -> None:
+        anchors = _extract_location_anchors(
+            [
+                "playas recomendadas en el Algarve",
+                "actividades en Cancún",
+                "gastronomía de La Rioja",
+            ]
+        )
+
+        self.assertEqual(anchors, ["algarve", "cancun", "la rioja"])
+
+    def test_filters_fragments_from_other_destinations(self) -> None:
+        fragments = [
+            {
+                "headings": "La huella verde de Porches",
+                "text": "Porches es un destino del Algarve.",
+            },
+            {
+                "headings": "Exuberante y diversa",
+                "text": "En torno a Setúbal la naturaleza permanece intacta.",
+            },
+        ]
+
+        filtered = _filter_fragments_by_location(
+            fragments,
+            ["playas recomendadas en el Algarve"],
+        )
+
+        self.assertEqual(filtered, [fragments[0]])
+
+    def test_returns_no_fragments_when_destination_is_not_supported(self) -> None:
+        fragments = [
+            {
+                "headings": "Bienestar y vida al aire libre",
+                "text": "Cala Luna ofrece actividades en Guanacaste.",
+            },
+            {
+                "headings": "Gastronomía y descanso",
+                "text": "Palm Springs ofrece gastronomía y ocio.",
+            },
+        ]
+
+        filtered = _filter_fragments_by_location(
+            fragments,
+            ["actividades en Cancún"],
+        )
+
+        self.assertEqual(filtered, [])
 
     def test_normalizes_and_deduplicates_queries(self) -> None:
         queries = _normalize_queries(
