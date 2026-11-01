@@ -6,6 +6,7 @@ import llm_pb2
 from app.services.agent.dispatcher import dispatch_tool_call
 from app.services.agent.service import _enforce_rag_rejection
 from app.services.agent.tool_calls import (
+    _normalize_catalog_tool_result,
     _normalize_tool_result,
     build_tool_exchange,
 )
@@ -51,6 +52,60 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
             _normalize_tool_result(result),
             {"value": "structured"},
         )
+
+    def test_normalizes_negative_minutes_from_flight_search(self) -> None:
+        catalog = [
+            CatalogTool(
+                llm_name="pre_search_flights",
+                description="Busca vuelos",
+                input_schema_json="{}",
+                server_name="andes-air",
+                mcp_tool_name="search_flights",
+            )
+        ]
+        result = {
+            "flights": [
+                {"depart": "17:-55", "arrive": "05:-43"},
+                {"depart": "07:-3", "arrive": "19:38"},
+            ]
+        }
+
+        normalized = _normalize_catalog_tool_result(
+            catalog,
+            "pre_search_flights",
+            result,
+        )
+
+        self.assertEqual(
+            normalized,
+            {
+                "flights": [
+                    {"depart": "17:55", "arrive": "05:43"},
+                    {"depart": "07:03", "arrive": "19:38"},
+                ]
+            },
+        )
+        self.assertEqual(result["flights"][0]["depart"], "17:-55")
+
+    def test_does_not_normalize_times_from_other_tools(self) -> None:
+        catalog = [
+            CatalogTool(
+                llm_name="pre_search_hotels",
+                description="Busca hoteles",
+                input_schema_json="{}",
+                server_name="andes-hotels",
+                mcp_tool_name="search_hotels",
+            )
+        ]
+        result = {"flights": [{"depart": "17:-55"}]}
+
+        normalized = _normalize_catalog_tool_result(
+            catalog,
+            "pre_search_hotels",
+            result,
+        )
+
+        self.assertIs(normalized, result)
 
     def test_enforces_exact_rejection_in_combined_response(self) -> None:
         messages = [

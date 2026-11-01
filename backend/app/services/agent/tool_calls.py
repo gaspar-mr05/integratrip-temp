@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Iterable
 
 import llm_pb2
@@ -18,6 +19,10 @@ CONFIRMATION_REQUIRED_MCP_TOOLS = {
     "book_hotel",
     "cancel_booking",
 }
+
+_NEGATIVE_MINUTE_TIME_PATTERN = re.compile(
+    r"^(?P<hour>[01]?\d|2[0-3]):-(?P<minute>[0-5]?\d)$"
+)
 
 
 class InvalidFunctionArgumentsError(ValueError):
@@ -51,6 +56,55 @@ def _normalize_tool_result(result: object) -> object:
     if isinstance(parsed_text, (dict, list)):
         return parsed_text
     return result
+
+
+def _normalize_flight_time(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+
+    match = _NEGATIVE_MINUTE_TIME_PATTERN.fullmatch(value)
+    if match is None:
+        return value
+
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _normalize_catalog_tool_result(
+    catalog: list[CatalogTool],
+    llm_name: str,
+    result: object,
+) -> object:
+    catalog_tool = next(
+        (tool for tool in catalog if tool.llm_name == llm_name),
+        None,
+    )
+    if (
+        catalog_tool is None
+        or catalog_tool.mcp_tool_name != "search_flights"
+        or not isinstance(result, dict)
+        or not isinstance(result.get("flights"), list)
+    ):
+        return result
+
+    normalized_flights = []
+    for flight in result["flights"]:
+        if not isinstance(flight, dict):
+            normalized_flights.append(flight)
+            continue
+
+        normalized_flight = dict(flight)
+        for field in ("depart", "arrive"):
+            if field in normalized_flight:
+                normalized_flight[field] = _normalize_flight_time(
+                    normalized_flight[field]
+                )
+        normalized_flights.append(normalized_flight)
+
+    normalized_result = dict(result)
+    normalized_result["flights"] = normalized_flights
+    return normalized_result
 
 
 def _parse_function_arguments(arguments_json: str) -> dict:
@@ -119,7 +173,11 @@ async def _dispatch_function_call(
             "No se pudo completar la comunicación con el servidor MCP",
         )
 
-    normalized_result = _normalize_tool_result(result)
+    normalized_result = _normalize_catalog_tool_result(
+        catalog,
+        function_call.name,
+        _normalize_tool_result(result),
+    )
     try:
         result_json = json.dumps(normalized_result, ensure_ascii=False)
     except (TypeError, ValueError):
