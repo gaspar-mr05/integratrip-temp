@@ -4,13 +4,46 @@ from unittest.mock import AsyncMock, patch
 
 import llm_pb2
 from app.services.agent.dispatcher import dispatch_tool_call
+from app.services.agent.service import _enforce_rag_rejection
 from app.services.agent.tool_calls import build_tool_exchange
 from app.services.mcp.dispatcher import InvalidToolArgumentsError
 from app.services.mcp.models import CatalogTool
 from app.services.rag import RAG_TOOL_NAME
+from app.services.rag.catalog import REJECTION_SENTENCE
 
 
 class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    def test_enforces_exact_rejection_in_combined_response(self) -> None:
+        messages = [
+            llm_pb2.Message(
+                role=llm_pb2.Message.USER,
+                text="Reserva el vuelo y revisa las revistas",
+            ),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name=RAG_TOOL_NAME,
+                        result_json=(
+                            '{"fragments":[],"response_mode":"reject"}'
+                        ),
+                        id="rag-call",
+                    )
+                ],
+            ),
+        ]
+
+        result = _enforce_rag_rejection(
+            "He reservado tu vuelo.\n"
+            "No encontré información específica en las revistas sobre Cancún.",
+            messages,
+        )
+
+        self.assertEqual(
+            result,
+            f"He reservado tu vuelo.\n{REJECTION_SENTENCE}",
+        )
+
     async def test_dispatches_local_rag_without_calling_mcp(self) -> None:
         catalog = [
             CatalogTool(

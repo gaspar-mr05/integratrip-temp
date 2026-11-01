@@ -1,3 +1,5 @@
+import json
+import re
 from uuid import uuid4
 
 import llm_pb2
@@ -9,6 +11,7 @@ from app.services.agent.tool_calls import (
 )
 from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.models import CatalogTool
+from app.services.rag.catalog import RAG_TOOL_NAME, REJECTION_SENTENCE
 
 MAX_AGENT_TURNS = 12
 
@@ -80,8 +83,10 @@ def _validate_resume_history(history: list[llm_pb2.Message]) -> None:
 
 def _build_final_result(
     response: llm_pb2.GenerateResponse,
+    messages: list[llm_pb2.Message],
     generated_messages: list[llm_pb2.Message],
 ) -> AgentRunResult:
+    response.text = _enforce_rag_rejection(response.text, messages)
     final_message = llm_pb2.Message(
         role=llm_pb2.Message.MODEL,
         text=response.text,
@@ -92,6 +97,54 @@ def _build_final_result(
         final_response=response,
         generated_messages=tuple(generated_messages),
     )
+
+
+def _current_turn_messages(
+    messages: list[llm_pb2.Message],
+) -> list[llm_pb2.Message]:
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].role == llm_pb2.Message.USER:
+            return messages[index + 1 :]
+    return []
+
+
+def _current_rag_response_mode(
+    messages: list[llm_pb2.Message],
+) -> str | None:
+    response_mode = None
+    for message in _current_turn_messages(messages):
+        for function_result in message.function_results:
+            if function_result.name != RAG_TOOL_NAME or function_result.is_error:
+                continue
+            try:
+                payload = json.loads(function_result.result_json)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and isinstance(
+                payload.get("response_mode"), str
+            ):
+                response_mode = payload["response_mode"]
+    return response_mode
+
+
+def _enforce_rag_rejection(
+    response_text: str,
+    messages: list[llm_pb2.Message],
+) -> str:
+    if (
+        _current_rag_response_mode(messages) != "reject"
+        or REJECTION_SENTENCE in response_text
+    ):
+        return response_text
+
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", response_text.strip())
+    preserved = [
+        sentence
+        for sentence in sentences
+        if sentence and "revista" not in sentence.casefold()
+    ]
+    preserved.append(REJECTION_SENTENCE)
+    return "\n".join(preserved)
 
 
 def _build_pending_result(
@@ -119,7 +172,11 @@ async def _run_agent_loop(
             _validate_agent_response(response)
 
             if response.stop:
-                return _build_final_result(response, generated_messages)
+                return _build_final_result(
+                    response,
+                    messages,
+                    generated_messages,
+                )
 
             pending_confirmations = find_pending_confirmations(
                 catalog,
