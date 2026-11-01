@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, patch
 
 import llm_pb2
 from app.services.agent.dispatcher import dispatch_tool_call
-from app.services.agent.service import _enforce_rag_rejection
+from app.services.agent.service import (
+    _build_contextual_llm_tools,
+    _enforce_rag_rejection,
+)
 from app.services.agent.tool_calls import (
     _normalize_catalog_tool_result,
     _normalize_tool_result,
@@ -17,6 +20,76 @@ from app.services.rag.catalog import REJECTION_SENTENCE
 
 
 class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    def test_limits_follow_up_tools_to_used_and_confirmable_tools(
+        self,
+    ) -> None:
+        catalog = [
+            CatalogTool(
+                llm_name="pre_search_flights",
+                description="Busca vuelos",
+                input_schema_json="{}",
+                server_name="andes-air",
+                mcp_tool_name="search_flights",
+            ),
+            CatalogTool(
+                llm_name="pre_book_flight",
+                description="Reserva un vuelo",
+                input_schema_json="{}",
+                server_name="andes-air",
+                mcp_tool_name="book_flight",
+            ),
+            CatalogTool(
+                llm_name="pre_cancel_booking",
+                description="Cancela una reserva",
+                input_schema_json="{}",
+                server_name="andes-air",
+                mcp_tool_name="cancel_booking",
+            ),
+            CatalogTool(
+                llm_name="cimd_get_current_weather",
+                description="Obtiene el clima actual",
+                input_schema_json="{}",
+                server_name="cielo-sur",
+                mcp_tool_name="get_current_weather",
+            ),
+        ]
+        messages = [
+            llm_pb2.Message(
+                role=llm_pb2.Message.USER,
+                text="Busca vuelos",
+            ),
+            llm_pb2.Message(
+                role=llm_pb2.Message.MODEL,
+                function_calls=[
+                    llm_pb2.FunctionCall(
+                        name="pre_search_flights",
+                        id="call-1",
+                    )
+                ],
+            ),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name="pre_search_flights",
+                        id="call-1",
+                        result_json='{"flights":[]}',
+                    )
+                ],
+            ),
+        ]
+
+        tools = _build_contextual_llm_tools(catalog, messages)
+
+        self.assertEqual(
+            [tool.name for tool in tools],
+            [
+                "pre_search_flights",
+                "pre_book_flight",
+                "pre_cancel_booking",
+            ],
+        )
+
     def test_unwraps_json_text_from_mcp_result_for_llm(self) -> None:
         result = {
             "content": [

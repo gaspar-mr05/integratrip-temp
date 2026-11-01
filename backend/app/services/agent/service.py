@@ -6,6 +6,7 @@ import llm_pb2
 from app.clients.llm_client import LlmClient
 from app.services.agent.models import AgentRunResult, PendingToolConfirmation
 from app.services.agent.tool_calls import (
+    CONFIRMATION_REQUIRED_MCP_TOOLS,
     build_tool_exchange,
     find_pending_confirmations,
 )
@@ -108,6 +109,43 @@ def _current_turn_messages(
     return []
 
 
+def _current_turn_tool_names(
+    messages: list[llm_pb2.Message],
+) -> set[str]:
+    tool_names: set[str] = set()
+    for message in _current_turn_messages(messages):
+        tool_names.update(call.name for call in message.function_calls)
+        tool_names.update(result.name for result in message.function_results)
+    return tool_names
+
+
+def _build_contextual_llm_tools(
+    catalog: list[CatalogTool],
+    messages: list[llm_pb2.Message],
+) -> list[llm_pb2.Tool]:
+    used_tool_names = _current_turn_tool_names(messages)
+    if not used_tool_names:
+        return _build_llm_tools(catalog)
+
+    used_server_names = {
+        tool.server_name
+        for tool in catalog
+        if tool.llm_name in used_tool_names and tool.server_name is not None
+    }
+    contextual_catalog = [
+        tool
+        for tool in catalog
+        if tool.llm_name in used_tool_names
+        or (
+            tool.server_name in used_server_names
+            and tool.mcp_tool_name in CONFIRMATION_REQUIRED_MCP_TOOLS
+        )
+    ]
+    if not contextual_catalog:
+        return _build_llm_tools(catalog)
+    return _build_llm_tools(contextual_catalog)
+
+
 def _current_rag_response_mode(
     messages: list[llm_pb2.Message],
 ) -> str | None:
@@ -164,7 +202,7 @@ async def _run_agent_loop(
     generated_messages: list[llm_pb2.Message],
 ) -> AgentRunResult:
     catalog = await build_tool_catalog(user_id)
-    llm_tools = _build_llm_tools(catalog)
+    llm_tools = _build_contextual_llm_tools(catalog, messages)
 
     async with LlmClient() as client:
         for turn_index in range(MAX_AGENT_TURNS):
@@ -209,6 +247,7 @@ async def _run_agent_loop(
             )
             messages.extend(tool_exchange)
             generated_messages.extend(tool_exchange)
+            llm_tools = _build_contextual_llm_tools(catalog, messages)
 
     raise AgentTurnLimitError(
         f"El agente alcanzó el límite de {MAX_AGENT_TURNS} turnos"
