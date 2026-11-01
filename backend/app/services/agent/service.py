@@ -1,9 +1,10 @@
 import json
+import logging
 import re
 from uuid import uuid4
 
 import llm_pb2
-from app.clients.llm_client import LlmClient
+from app.clients.llm_client import LlmClient, LlmEmptyResponseError
 from app.services.agent.models import AgentRunResult, PendingToolConfirmation
 from app.services.agent.tool_calls import (
     build_tool_exchange,
@@ -14,6 +15,8 @@ from app.services.mcp.models import CatalogTool
 from app.services.rag.catalog import RAG_TOOL_NAME, REJECTION_SENTENCE
 
 MAX_AGENT_TURNS = 12
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidAgentResponseError(Exception):
@@ -136,6 +139,33 @@ def _build_contextual_llm_tools(
     return _build_llm_tools(contextual_catalog)
 
 
+def _current_turn_has_tool_results(
+    messages: list[llm_pb2.Message],
+) -> bool:
+    return any(
+        message.function_results
+        for message in _current_turn_messages(messages)
+    )
+
+
+async def _generate_agent_turn(
+    client: LlmClient,
+    messages: list[llm_pb2.Message],
+    llm_tools: list[llm_pb2.Tool],
+) -> llm_pb2.GenerateResponse:
+    try:
+        return await _generate_turn(client, messages, llm_tools)
+    except LlmEmptyResponseError:
+        if not llm_tools or not _current_turn_has_tool_results(messages):
+            raise
+
+        logger.warning(
+            "El proveedor LLM agotó los reintentos después de ejecutar tools; "
+            "solicitando una respuesta final sin catálogo"
+        )
+        return await _generate_turn(client, messages, [])
+
+
 def _current_rag_response_mode(
     messages: list[llm_pb2.Message],
 ) -> str | None:
@@ -196,7 +226,11 @@ async def _run_agent_loop(
 
     async with LlmClient() as client:
         for turn_index in range(MAX_AGENT_TURNS):
-            response = await _generate_turn(client, messages, llm_tools)
+            response = await _generate_agent_turn(
+                client,
+                messages,
+                llm_tools,
+            )
             _validate_agent_response(response)
 
             if response.stop:

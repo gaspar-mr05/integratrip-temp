@@ -3,10 +3,12 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import llm_pb2
+from app.clients.llm_client import LlmEmptyResponseError
 from app.services.agent.dispatcher import dispatch_tool_call
 from app.services.agent.service import (
     _build_contextual_llm_tools,
     _enforce_rag_rejection,
+    _generate_agent_turn,
 )
 from app.services.agent.tool_calls import (
     _normalize_time_fields,
@@ -20,6 +22,52 @@ from app.services.rag.catalog import REJECTION_SENTENCE
 
 
 class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retries_post_tool_generation_without_catalog(self) -> None:
+        messages = [
+            llm_pb2.Message(role=llm_pb2.Message.USER, text="Busca vuelos"),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name="pre_search_flights",
+                        result_json='{"flights":[]}',
+                    )
+                ],
+            ),
+        ]
+        tools = [llm_pb2.Tool(name="pre_search_flights")]
+        expected = llm_pb2.GenerateResponse(
+            text="No hay vuelos disponibles",
+            stop=True,
+        )
+        client = AsyncMock()
+        client.generate.side_effect = [
+            LlmEmptyResponseError("respuesta vacía"),
+            expected,
+        ]
+
+        response = await _generate_agent_turn(client, messages, tools)
+
+        self.assertIs(response, expected)
+        self.assertEqual(client.generate.await_count, 2)
+        self.assertEqual(
+            [len(call.args[0].tools) for call in client.generate.await_args_list],
+            [1, 0],
+        )
+
+    async def test_does_not_remove_catalog_before_tool_execution(self) -> None:
+        messages = [
+            llm_pb2.Message(role=llm_pb2.Message.USER, text="Busca vuelos")
+        ]
+        tools = [llm_pb2.Tool(name="pre_search_flights")]
+        client = AsyncMock()
+        client.generate.side_effect = LlmEmptyResponseError("respuesta vacía")
+
+        with self.assertRaises(LlmEmptyResponseError):
+            await _generate_agent_turn(client, messages, tools)
+
+        client.generate.assert_awaited_once()
+
     def test_limits_follow_up_tools_to_used_tools(
         self,
     ) -> None:
