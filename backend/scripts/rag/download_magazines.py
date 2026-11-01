@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import requests
+
 from scripts.rag.settings import (
     MAGAZINE_URL_TEMPLATE,
     RAW_MAGAZINES_DIR,

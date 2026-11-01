@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from fastapi import Response, HTTPException, Cookie, status
+from fastapi import Cookie, HTTPException, Response, status
 from jose import jwt
+from jose.exceptions import JOSEError
 
 from app.config import get_settings
 
@@ -14,7 +15,7 @@ def create_session_token(user_id: str) -> str:
     settings = get_settings()
     payload = {
         "sub": user_id,
-        "exp": datetime.now(timezone.utc) + SESSION_TTL,
+        "exp": datetime.now(UTC) + SESSION_TTL,
     }
     return jwt.encode(payload, settings.SESSION_SECRET_KEY, algorithm=SESSION_ALGORITHM)
 
@@ -51,7 +52,7 @@ def read_session_user_id(token: str) -> str | None:
         claims = decode_session_token(token)
         user_id = claims.get("sub")
         return user_id if isinstance(user_id, str) and user_id else None
-    except Exception:
+    except JOSEError:
         return None
 
 

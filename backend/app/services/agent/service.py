@@ -1,10 +1,12 @@
 from uuid import uuid4
 
 import llm_pb2
-
 from app.clients.llm_client import LlmClient
 from app.services.agent.models import AgentRunResult, PendingToolConfirmation
-from app.services.agent.tool_calls import build_tool_exchange, find_pending_confirmations
+from app.services.agent.tool_calls import (
+    build_tool_exchange,
+    find_pending_confirmations,
+)
 from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.models import CatalogTool
 
@@ -93,17 +95,9 @@ def _build_final_result(
 
 
 def _build_pending_result(
-    response: llm_pb2.GenerateResponse,
     generated_messages: list[llm_pb2.Message],
     pending_confirmations: tuple[PendingToolConfirmation, ...],
 ) -> AgentRunResult:
-    model_message = llm_pb2.Message(
-        role=llm_pb2.Message.MODEL,
-        text=response.text,
-        function_calls=response.function_calls,
-    )
-    generated_messages.append(model_message)
-
     return AgentRunResult(
         final_response=None,
         generated_messages=tuple(generated_messages),
@@ -132,8 +126,18 @@ async def _run_agent_loop(
                 response.function_calls,
             )
             if pending_confirmations:
-                return _build_pending_result(
+                deferred_call_ids = frozenset(
+                    confirmation.function_call_id
+                    for confirmation in pending_confirmations
+                )
+                tool_exchange = await build_tool_exchange(
+                    user_id,
+                    catalog,
                     response,
+                    deferred_call_ids=deferred_call_ids,
+                )
+                generated_messages.extend(tool_exchange)
+                return _build_pending_result(
                     generated_messages,
                     pending_confirmations,
                 )

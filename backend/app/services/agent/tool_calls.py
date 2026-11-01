@@ -2,18 +2,16 @@ import json
 from collections.abc import Iterable
 
 import llm_pb2
-
-from app.services.agent.models import PendingToolConfirmation
 from app.services.agent.dispatcher import (
     InvalidToolArgumentsError,
     UnknownCatalogToolError,
     dispatch_tool_call,
 )
+from app.services.agent.models import PendingToolConfirmation
 from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.models import CatalogTool
 from app.services.mcp.tools import McpProtocolError, McpToolExecutionError
 from app.services.rag import RagConfigurationError, RagSearchError
-
 
 CONFIRMATION_REQUIRED_MCP_TOOLS = {
     "book_flight",
@@ -216,9 +214,12 @@ async def build_tool_exchange(
     user_id: str,
     catalog: list[CatalogTool],
     response: llm_pb2.GenerateResponse,
+    deferred_call_ids: frozenset[str] = frozenset(),
 ) -> list[llm_pb2.Message]:
     function_results = []
     for function_call in response.function_calls:
+        if function_call.id in deferred_call_ids:
+            continue
         function_results.append(
             await _execute_function_call(user_id, catalog, function_call)
         )
@@ -228,8 +229,12 @@ async def build_tool_exchange(
         text=response.text,
         function_calls=response.function_calls,
     )
-    tool_message = llm_pb2.Message(
-        role=llm_pb2.Message.TOOL,
-        function_results=function_results,
-    )
-    return [model_message, tool_message]
+    exchange = [model_message]
+    if function_results:
+        exchange.append(
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=function_results,
+            )
+        )
+    return exchange

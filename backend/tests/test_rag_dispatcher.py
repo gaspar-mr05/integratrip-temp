@@ -1,7 +1,10 @@
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import llm_pb2
 from app.services.agent.dispatcher import dispatch_tool_call
+from app.services.agent.tool_calls import build_tool_exchange
 from app.services.mcp.dispatcher import InvalidToolArgumentsError
 from app.services.mcp.models import CatalogTool
 from app.services.rag import RAG_TOOL_NAME
@@ -87,6 +90,67 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
             catalog,
             "pre_search_flights",
             {"origin": "SCL"},
+        )
+
+    async def test_executes_rag_while_deferring_confirmable_tool(self) -> None:
+        catalog = [
+            CatalogTool(
+                llm_name=RAG_TOOL_NAME,
+                description="Busca revistas",
+                input_schema_json="{}",
+                source="local",
+            ),
+            CatalogTool(
+                llm_name="pre_book_flight",
+                description="Reserva un vuelo",
+                input_schema_json="{}",
+                server_name="andes-air",
+                mcp_tool_name="book_flight",
+            ),
+        ]
+        response = llm_pb2.GenerateResponse(
+            function_calls=[
+                llm_pb2.FunctionCall(
+                    id="call-rag",
+                    name=RAG_TOOL_NAME,
+                    arguments_json='{"queries":["qué hacer en Lima"]}',
+                ),
+                llm_pb2.FunctionCall(
+                    id="call-book",
+                    name="pre_book_flight",
+                    arguments_json='{"flight_id":"flight-1"}',
+                ),
+            ],
+            stop=False,
+        )
+        dispatcher = AsyncMock(return_value={"fragments": [{"id": "chunk-1"}]})
+
+        with patch(
+            "app.services.agent.tool_calls.dispatch_tool_call",
+            new=dispatcher,
+        ):
+            exchange = await build_tool_exchange(
+                "user-1",
+                catalog,
+                response,
+                deferred_call_ids=frozenset({"call-book"}),
+            )
+
+        self.assertEqual(
+            [message.role for message in exchange],
+            [llm_pb2.Message.MODEL, llm_pb2.Message.TOOL],
+        )
+        function_results = exchange[1].function_results
+        self.assertEqual([result.id for result in function_results], ["call-rag"])
+        self.assertEqual(
+            json.loads(function_results[0].result_json),
+            {"fragments": [{"id": "chunk-1"}]},
+        )
+        dispatcher.assert_awaited_once_with(
+            "user-1",
+            catalog,
+            RAG_TOOL_NAME,
+            {"queries": ["qué hacer en Lima"]},
         )
 
 

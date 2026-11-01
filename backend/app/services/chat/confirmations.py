@@ -1,7 +1,6 @@
 import json
 
 import llm_pb2
-
 from app.db.conversations import touch_conversation
 from app.db.messages import insert_messages
 from app.db.pending_confirmations import (

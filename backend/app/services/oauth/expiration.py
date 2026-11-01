@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def is_expired(expires_at: str) -> bool:
     expiration = datetime.fromisoformat(expires_at)
     if expiration.tzinfo is None:
-        expiration = expiration.replace(tzinfo=timezone.utc)
-    return expiration <= datetime.now(timezone.utc)
+        expiration = expiration.replace(tzinfo=UTC)
+    return expiration <= datetime.now(UTC)

@@ -2,16 +2,15 @@
 
 import logging
 
-from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
-from mcp.shared._httpx_utils import create_mcp_http_client
-from mcp.shared.exceptions import MCPError
-
 from app.services.mcp.connection import (
     get_valid_access_token,
     mcp_endpoint,
     resolve_mcp_server,
 )
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
+from mcp.shared.exceptions import MCPError
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +56,13 @@ async def _fetch_tools(endpoint: str, access_token: str) -> list[dict]:
     async with create_mcp_http_client(headers=headers) as http_client:
         http_client.event_hooks["response"].append(_log_http_errors)
 
-        async with streamable_http_client(endpoint, http_client=http_client) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.list_tools()
-                return [tool.model_dump(by_alias=True) for tool in result.tools]
+        async with (
+            streamable_http_client(endpoint, http_client=http_client) as (read, write),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            result = await session.list_tools()
+            return [tool.model_dump(by_alias=True) for tool in result.tools]
 
 
 async def list_server_tools(user_id: str, server_name: str) -> list[dict]:
@@ -87,11 +88,13 @@ async def _call_tool(
     async with create_mcp_http_client(headers=headers) as http_client:
         http_client.event_hooks["response"].append(_log_http_errors)
 
-        async with streamable_http_client(endpoint, http_client=http_client) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, params)
-                return result.model_dump()
+        async with (
+            streamable_http_client(endpoint, http_client=http_client) as (read, write),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            result = await session.call_tool(tool_name, params)
+            return result.model_dump()
 
 
 async def call_server_tool(

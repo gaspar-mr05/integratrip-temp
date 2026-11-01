@@ -1,10 +1,9 @@
-from typing import NoReturn
+from typing import NoReturn, Self
 
 import grpc
 
 import llm_pb2
 import llm_pb2_grpc
-
 from app.config import Settings, get_settings
 
 
@@ -66,7 +65,7 @@ class LlmClient:
         self._channel = _create_channel(self._settings)
         self._stub = llm_pb2_grpc.LlmStub(self._channel)
 
-    async def __aenter__(self) -> "LlmClient":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:

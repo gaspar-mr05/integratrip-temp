@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.clients.supabase_client import get_supabase_client
 
@@ -16,7 +16,7 @@ def upsert_mcp_connection(
     scope: str | None,
 ) -> dict | None:
     supabase = get_supabase_client()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = now + timedelta(seconds=expires_in) if expires_in is not None else None
 
     try:

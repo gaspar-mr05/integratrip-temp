@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from postgrest.exceptions import APIError
 
@@ -94,7 +94,7 @@ def get_conversation(
 
 
 def touch_conversation(*, user_id: str, conversation_id: str) -> dict:
-    updated_at = datetime.now(timezone.utc).isoformat()
+    updated_at = datetime.now(UTC).isoformat()
     try:
         result = (
             get_supabase_client()

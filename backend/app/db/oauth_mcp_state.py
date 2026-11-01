@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.clients.supabase_client import get_supabase_client
 
@@ -10,7 +10,7 @@ STATE_TTL = timedelta(minutes=10)
 
 
 def insert_mcp_state(user_id: str, mcp_server_id: str, state: str, code_verifier: str) -> bool:
-    expires_at = datetime.now(timezone.utc) + STATE_TTL
+    expires_at = datetime.now(UTC) + STATE_TTL
     try:
         result = (
             get_supabase_client()

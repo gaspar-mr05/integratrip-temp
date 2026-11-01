@@ -4,7 +4,6 @@ from app.clients.llm_client import LlmClientError, LlmRateLimitError
 from app.db.conversations import (
     create_conversation,
     list_conversations,
-    update_conversation_title,
 )
 from app.db.pending_confirmations import (
     PendingConfirmationUnavailableError,

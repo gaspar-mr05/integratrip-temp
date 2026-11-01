@@ -1,5 +1,4 @@
 import llm_pb2
-
 from app.db.conversations import (
     DEFAULT_CONVERSATION_TITLE,
     get_conversation,
@@ -86,6 +85,13 @@ def _build_generated_rows(
         transform_message_to_dict(message, first_sequence + offset)
         for offset, message in enumerate(result.generated_messages)
     ]
+
+
+def _latest_model_text(result: AgentRunResult) -> str:
+    for message in reversed(result.generated_messages):
+        if message.role == llm_pb2.Message.MODEL:
+            return message.text
+    return ""
 
 
 def _find_pending_model_message_id(
@@ -207,7 +213,7 @@ async def run_conversation_turn(
         )
 
     return {
-        "text": agent_result.generated_messages[-1].text,
+        "text": _latest_model_text(agent_result),
         "pending_confirmations": inserted_confirmations,
     }
 
@@ -230,6 +236,6 @@ async def resume_conversation(
     )
 
     return {
-        "text": agent_result.generated_messages[-1].text,
+        "text": _latest_model_text(agent_result),
         "pending_confirmations": inserted_confirmations,
     }

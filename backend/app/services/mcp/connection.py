@@ -14,7 +14,10 @@ from app.services.oauth.authorization_code import (
     refresh_access_token,
 )
 from app.services.oauth.dcr import DcrRegistrationError, register_client
-from app.services.oauth.discovery import OAuthDiscoveryError, discover_mcp_oauth_metadata
+from app.services.oauth.discovery import (
+    OAuthDiscoveryError,
+    discover_mcp_oauth_metadata,
+)
 from app.services.oauth.expiration import is_expired
 
 SUPPORTED_AUTH_TYPES = ("PRE", "DCR", "CIMD")

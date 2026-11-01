@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
+from app.config import get_settings
 from app.db.users import UserReadError, UserUpsertError, get_user
 from app.security.session import (
     SESSION_COOKIE_NAME,
@@ -17,8 +18,6 @@ from app.services.auth_service import (
     consume_code_verifier,
     start_login_flow,
 )
-
-from app.config import get_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

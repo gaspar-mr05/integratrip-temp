@@ -4,13 +4,13 @@ from urllib.parse import urlparse
 from app.config import get_settings
 from app.db.oauth_login_state import consume_login_state, insert_login_state
 from app.db.users import upsert_user
+from app.security.access_token import read_unverified_access_token_claims
 from app.security.pkce import (
     create_code_verifier,
     generate_state,
     transform_code_verifier_to_code_challenge,
 )
 from app.security.session import create_session_token
-from app.security.access_token import read_unverified_access_token_claims
 from app.services.oauth import authorization_code
 from app.services.oauth.expiration import is_expired
 

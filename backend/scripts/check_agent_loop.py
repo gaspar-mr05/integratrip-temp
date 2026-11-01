@@ -3,7 +3,6 @@ import sys
 from unittest.mock import patch
 
 import llm_pb2
-
 from app.services.agent import run_agent
 from app.services.mcp.catalog import build_tool_catalog
 from app.services.mcp.models import CatalogTool
