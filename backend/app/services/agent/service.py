@@ -6,7 +6,6 @@ import llm_pb2
 from app.clients.llm_client import LlmClient
 from app.services.agent.models import AgentRunResult, PendingToolConfirmation
 from app.services.agent.tool_calls import (
-    CONFIRMATION_REQUIRED_MCP_TOOLS,
     build_tool_exchange,
     find_pending_confirmations,
 )
@@ -127,19 +126,10 @@ def _build_contextual_llm_tools(
     if not used_tool_names:
         return _build_llm_tools(catalog)
 
-    used_server_names = {
-        tool.server_name
-        for tool in catalog
-        if tool.llm_name in used_tool_names and tool.server_name is not None
-    }
     contextual_catalog = [
         tool
         for tool in catalog
         if tool.llm_name in used_tool_names
-        or (
-            tool.server_name in used_server_names
-            and tool.mcp_tool_name in CONFIRMATION_REQUIRED_MCP_TOOLS
-        )
     ]
     if not contextual_catalog:
         return _build_llm_tools(catalog)

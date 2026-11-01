@@ -20,7 +20,7 @@ from app.services.rag.catalog import REJECTION_SENTENCE
 
 
 class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
-    def test_limits_follow_up_tools_to_used_and_confirmable_tools(
+    def test_limits_follow_up_tools_to_used_tools(
         self,
     ) -> None:
         catalog = [
@@ -83,11 +83,26 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [tool.name for tool in tools],
+            ["pre_search_flights"],
+        )
+
+        next_turn_tools = _build_contextual_llm_tools(
+            catalog,
             [
-                "pre_search_flights",
-                "pre_book_flight",
-                "pre_cancel_booking",
+                *messages,
+                llm_pb2.Message(
+                    role=llm_pb2.Message.MODEL,
+                    text="Encontré vuelos",
+                ),
+                llm_pb2.Message(
+                    role=llm_pb2.Message.USER,
+                    text="Reserva el primero",
+                ),
             ],
+        )
+        self.assertEqual(
+            [tool.name for tool in next_turn_tools],
+            [tool.llm_name for tool in catalog],
         )
 
     def test_unwraps_json_text_from_mcp_result_for_llm(self) -> None:
