@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     LLM_GRPC_TARGET: str = Field(default="dns:///iic3103-tarea2-llm-z2fqxmm2ja-uc.a.run.app:443")
     LLM_GRPC_TLS: bool = Field(default=True)
     LLM_GRPC_TIMEOUT_SECONDS: float = Field(default=30, gt=0)
+    LLM_EMPTY_RESPONSE_MAX_ATTEMPTS: int = Field(default=3, ge=1, le=5)
+    LLM_EMPTY_RESPONSE_RETRY_DELAY_SECONDS: float = Field(
+        default=0.25,
+        ge=0,
+        le=5,
+    )
     LLM_STUDENT_EMAIL: str
     LLM_STUDENT_ID: str
 

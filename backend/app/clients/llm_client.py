@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from typing import NoReturn, Self
 
 import grpc
@@ -5,6 +7,8 @@ import grpc
 import llm_pb2
 import llm_pb2_grpc
 from app.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class LlmClientError(Exception):
@@ -83,11 +87,28 @@ class LlmClient:
             ("x-student-id", self._settings.LLM_STUDENT_ID),
         )
 
-        try:
-            return await self._stub.Generate(
-                request,
-                metadata=metadata,
-                timeout=self._settings.LLM_GRPC_TIMEOUT_SECONDS,
-            )
-        except grpc.aio.AioRpcError as exc:
-            _raise_client_error(exc)
+        max_attempts = self._settings.LLM_EMPTY_RESPONSE_MAX_ATTEMPTS
+        retry_delay = self._settings.LLM_EMPTY_RESPONSE_RETRY_DELAY_SECONDS
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return await self._stub.Generate(
+                    request,
+                    metadata=metadata,
+                    timeout=self._settings.LLM_GRPC_TIMEOUT_SECONDS,
+                )
+            except grpc.aio.AioRpcError as exc:
+                try:
+                    _raise_client_error(exc)
+                except LlmEmptyResponseError:
+                    if attempt == max_attempts:
+                        raise
+                    logger.warning(
+                        "El proveedor LLM devolvió una respuesta vacía; "
+                        "reintentando (%s/%s)",
+                        attempt,
+                        max_attempts,
+                    )
+                    await asyncio.sleep(retry_delay * (2 ** (attempt - 1)))
+
+        raise LlmClientError("No se pudo obtener una respuesta del servicio LLM")
