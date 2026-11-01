@@ -24,6 +24,35 @@ class InvalidFunctionArgumentsError(ValueError):
     pass
 
 
+def _normalize_tool_result(result: object) -> object:
+    if not isinstance(result, dict):
+        return result
+
+    structured_content = result.get("structured_content")
+    if isinstance(structured_content, (dict, list)):
+        return structured_content
+
+    content = result.get("content")
+    if not isinstance(content, list) or len(content) != 1:
+        return result
+
+    content_item = content[0]
+    if not isinstance(content_item, dict) or content_item.get("type") != "text":
+        return result
+
+    text = content_item.get("text")
+    if not isinstance(text, str):
+        return result
+
+    try:
+        parsed_text = json.loads(text)
+    except json.JSONDecodeError:
+        return result
+    if isinstance(parsed_text, (dict, list)):
+        return parsed_text
+    return result
+
+
 def _parse_function_arguments(arguments_json: str) -> dict:
     try:
         arguments = json.loads(arguments_json)
@@ -90,8 +119,9 @@ async def _dispatch_function_call(
             "No se pudo completar la comunicación con el servidor MCP",
         )
 
+    normalized_result = _normalize_tool_result(result)
     try:
-        result_json = json.dumps(result, ensure_ascii=False)
+        result_json = json.dumps(normalized_result, ensure_ascii=False)
     except (TypeError, ValueError):
         return _build_error_result(
             function_call,

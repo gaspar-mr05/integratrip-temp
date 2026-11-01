@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, patch
 import llm_pb2
 from app.services.agent.dispatcher import dispatch_tool_call
 from app.services.agent.service import _enforce_rag_rejection
-from app.services.agent.tool_calls import build_tool_exchange
+from app.services.agent.tool_calls import (
+    _normalize_tool_result,
+    build_tool_exchange,
+)
 from app.services.mcp.dispatcher import InvalidToolArgumentsError
 from app.services.mcp.models import CatalogTool
 from app.services.rag import RAG_TOOL_NAME
@@ -13,6 +16,42 @@ from app.services.rag.catalog import REJECTION_SENTENCE
 
 
 class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    def test_unwraps_json_text_from_mcp_result_for_llm(self) -> None:
+        result = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": '{"flights":[{"flightId":"flight-1"}]}',
+                }
+            ],
+            "structured_content": None,
+            "is_error": False,
+        }
+
+        self.assertEqual(
+            _normalize_tool_result(result),
+            {"flights": [{"flightId": "flight-1"}]},
+        )
+
+    def test_preserves_non_json_mcp_text_result(self) -> None:
+        result = {
+            "content": [{"type": "text", "text": "Resultado legible"}],
+            "structured_content": None,
+        }
+
+        self.assertIs(_normalize_tool_result(result), result)
+
+    def test_prefers_structured_mcp_content(self) -> None:
+        result = {
+            "content": [{"type": "text", "text": '{"value":"fallback"}'}],
+            "structured_content": {"value": "structured"},
+        }
+
+        self.assertEqual(
+            _normalize_tool_result(result),
+            {"value": "structured"},
+        )
+
     def test_enforces_exact_rejection_in_combined_response(self) -> None:
         messages = [
             llm_pb2.Message(
