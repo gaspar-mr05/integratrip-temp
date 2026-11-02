@@ -320,6 +320,32 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, response_text)
 
+    def test_does_not_append_citations_to_rejection(self) -> None:
+        messages = [
+            llm_pb2.Message(role=llm_pb2.Message.USER, text="Visita La Rioja"),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name=RAG_TOOL_NAME,
+                        result_json=json.dumps(
+                            {
+                                "fragments": [
+                                    {"issue": 73, "pages": "44"}
+                                ],
+                                "response_mode": "evaluate",
+                            }
+                        ),
+                        id="rag-call",
+                    )
+                ],
+            ),
+        ]
+
+        result = _ensure_rag_citations(REJECTION_SENTENCE, messages)
+
+        self.assertEqual(result, REJECTION_SENTENCE)
+
     async def test_dispatches_local_rag_without_calling_mcp(self) -> None:
         catalog = [
             CatalogTool(

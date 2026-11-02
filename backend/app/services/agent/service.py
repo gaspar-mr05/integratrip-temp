@@ -225,6 +225,9 @@ def _ensure_rag_citations(
     response_text: str,
     messages: list[llm_pb2.Message],
 ) -> str:
+    if REJECTION_SENTENCE in response_text:
+        return response_text
+
     missing_citations = [
         citation
         for citation in _current_rag_citations(messages)
