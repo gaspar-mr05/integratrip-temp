@@ -8,6 +8,7 @@ from app.services.agent.dispatcher import dispatch_tool_call
 from app.services.agent.service import (
     _build_contextual_llm_tools,
     _enforce_rag_rejection,
+    _ensure_rag_citations,
     _generate_agent_turn,
 )
 from app.services.agent.tool_calls import (
@@ -256,6 +257,68 @@ class RagDispatcherTests(unittest.IsolatedAsyncioTestCase):
             result,
             f"He reservado tu vuelo.\n{REJECTION_SENTENCE}",
         )
+
+    def test_appends_missing_rag_citations(self) -> None:
+        messages = [
+            llm_pb2.Message(role=llm_pb2.Message.USER, text="Visita Barcelona"),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name=RAG_TOOL_NAME,
+                        result_json=json.dumps(
+                            {
+                                "fragments": [
+                                    {"issue": 74, "pages": "86,87"},
+                                    {"issue": 74, "pages": "86,87"},
+                                ],
+                                "response_mode": "answer",
+                            }
+                        ),
+                        id="rag-call",
+                    )
+                ],
+            ),
+        ]
+
+        result = _ensure_rag_citations(
+            "Puedes visitar la Casa Milà y el Barrio Gótico.",
+            messages,
+        )
+
+        self.assertEqual(
+            result,
+            "Puedes visitar la Casa Milà y el Barrio Gótico.\n\n"
+            "Fuentes: (Traveling 74, p. 86,87)",
+        )
+
+    def test_preserves_existing_rag_citations(self) -> None:
+        citation = "(Traveling 74, p. 86,87)"
+        messages = [
+            llm_pb2.Message(role=llm_pb2.Message.USER, text="Visita Barcelona"),
+            llm_pb2.Message(
+                role=llm_pb2.Message.TOOL,
+                function_results=[
+                    llm_pb2.FunctionResult(
+                        name=RAG_TOOL_NAME,
+                        result_json=json.dumps(
+                            {
+                                "fragments": [
+                                    {"issue": 74, "pages": "86,87"}
+                                ],
+                                "response_mode": "answer",
+                            }
+                        ),
+                        id="rag-call",
+                    )
+                ],
+            ),
+        ]
+        response_text = f"Visita la Casa Milà. {citation}"
+
+        result = _ensure_rag_citations(response_text, messages)
+
+        self.assertEqual(result, response_text)
 
     async def test_dispatches_local_rag_without_calling_mcp(self) -> None:
         catalog = [

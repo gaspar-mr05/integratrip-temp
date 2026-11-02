@@ -90,6 +90,7 @@ def _build_final_result(
     generated_messages: list[llm_pb2.Message],
 ) -> AgentRunResult:
     response.text = _enforce_rag_rejection(response.text, messages)
+    response.text = _ensure_rag_citations(response.text, messages)
     final_message = llm_pb2.Message(
         role=llm_pb2.Message.MODEL,
         text=response.text,
@@ -183,6 +184,59 @@ def _current_rag_response_mode(
             ):
                 response_mode = payload["response_mode"]
     return response_mode
+
+
+def _current_rag_citations(
+    messages: list[llm_pb2.Message],
+) -> list[str]:
+    citations: list[str] = []
+    for message in _current_turn_messages(messages):
+        for function_result in message.function_results:
+            if function_result.name != RAG_TOOL_NAME or function_result.is_error:
+                continue
+            try:
+                payload = json.loads(function_result.result_json)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            fragments = payload.get("fragments")
+            if not isinstance(fragments, list):
+                continue
+            for fragment in fragments:
+                if not isinstance(fragment, dict):
+                    continue
+                issue = fragment.get("issue")
+                pages = fragment.get("pages")
+                if not isinstance(issue, int) or not isinstance(pages, str):
+                    continue
+                pages = pages.strip()
+                if not pages:
+                    continue
+
+                citation = f"(Traveling {issue}, p. {pages})"
+                if citation not in citations:
+                    citations.append(citation)
+    return citations
+
+
+def _ensure_rag_citations(
+    response_text: str,
+    messages: list[llm_pb2.Message],
+) -> str:
+    missing_citations = [
+        citation
+        for citation in _current_rag_citations(messages)
+        if citation not in response_text
+    ]
+    if not missing_citations:
+        return response_text
+
+    sources = " ".join(missing_citations)
+    if not response_text.strip():
+        return f"Fuentes: {sources}"
+    return f"{response_text.rstrip()}\n\nFuentes: {sources}"
 
 
 def _enforce_rag_rejection(
